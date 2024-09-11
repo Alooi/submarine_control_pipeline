@@ -18,6 +18,7 @@ MS5837 sensor;
 // variables to store the status of components
 bool serialStatus = false;
 bool depthStatus = false;
+bool imuStatus = false;
 bool ethernetStatus = false;
 bool udpStatus = false;
 bool pc_connection = false;
@@ -27,8 +28,13 @@ IPAddress pcIP;
 // variable to store the port
 int pcPort;
 
+void move_wings()
+{
+  // TODO
+}
+
 // Function to scan an I2C bus for devices
-void scanI2CBus(TwoWire &wire)
+bool scanI2CBus(TwoWire &wire)
 {
   for (byte address = 1; address < 127; address++)
   {
@@ -37,8 +43,10 @@ void scanI2CBus(TwoWire &wire)
     {
       Serial.print("Found I2C device at address 0x");
       Serial.println(address, HEX);
+      return true;
     }
   }
+  return false;
 }
 
 void setup()
@@ -63,8 +71,8 @@ void setup()
 
   // Scan I2C bus for devices
   Serial.println("Scanning I2C bus...");
-  scanI2CBus(Wire);
-  scanI2CBus(Wire1);
+  depthStatus = scanI2CBus(Wire);
+  imuStatus = scanI2CBus(Wire1);
 
   // Start Ethernet and try to get an IP address via DHCP
   if (!Ethernet.begin())
@@ -150,7 +158,9 @@ void loop()
     "Altitude: " + String(sensor.altitude()) + String("\n") +
     "Roll: " + String(euler[0]) + String("\n") +
     "Pitch: " + String(euler[1]) + String("\n") +
-    "Yaw: " + String(euler[2]) + String("\n")
+    "Yaw: " + String(euler[2]) + String("\n") +
+    "depthStatus: " + String(depthStatus) + String("\n") +
+    "imuStatus: " + String(imuStatus) + String("\n") +
     );
   const char* dataChar = data.c_str();
   if (!pc_connection)
