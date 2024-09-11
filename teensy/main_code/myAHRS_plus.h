@@ -17,6 +17,7 @@ int read_quat();
 int read_euler();
 
 // myAHRS_plus register map
+// use namespace
 
 enum
 {
