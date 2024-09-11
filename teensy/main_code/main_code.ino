@@ -13,6 +13,7 @@ bool serialStatus = false;
 bool depthStatus = false;
 bool ethernetStatus = false;
 bool udpStatus = false;
+bool pc_connection = false;
 
 // variable to store top pc ip once received in the loop
 IPAddress pcIP;
@@ -45,7 +46,7 @@ void setup()
 
   // Start UDP
   Udp.begin(localPort);
-  Serial.print("Udp Began");
+  Serial.println("Udp Began");
   Serial.println(Ethernet.localIP());
   // ----------------------------
 
@@ -96,6 +97,7 @@ void loop()
     {
       // store the pc ip and port
       pcIP = Udp.remoteIP();
+      pc_connection = true;
       pcPort = Udp.remotePort();
       Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
       Udp.write("I am Teensy");
@@ -119,14 +121,17 @@ void loop()
     "Depth: " + String(sensor.depth()) + String("\n") +
     "Altitude: " + String(sensor.altitude()) + String("\n")
     );
+  Serial.println(data);
   const char* dataChar = data.c_str();
-  if (pcIP == 0)
+  if (!pc_connection)
   {
-    Serial.println("No pc connected");
   }
-  Udp.beginPacket(pcIP, pcPort);
-  Udp.write(dataChar);
-  Udp.endPacket();
+  else
+  {
+    Udp.beginPacket(pcIP, pcPort);
+    Udp.write(dataChar);
+    Udp.endPacket();
+  }
 
   // ----------------------------
 
