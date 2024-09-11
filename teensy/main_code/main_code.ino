@@ -28,11 +28,6 @@ IPAddress pcIP;
 // variable to store the port
 int pcPort;
 
-void move_wings()
-{
-  // TODO
-}
-
 // Function to scan an I2C bus for devices
 bool scanI2CBus(TwoWire &wire)
 {
@@ -160,8 +155,8 @@ void loop()
     "Pitch: " + String(euler[1]) + String("\n") +
     "Yaw: " + String(euler[2]) + String("\n") +
     "depthStatus: " + String(depthStatus) + String("\n") +
-    "imuStatus: " + String(imuStatus) + String("\n") +
-    );
+    "imuStatus: " + String(imuStatus) + String("\n")
+  );
   const char* dataChar = data.c_str();
   if (!pc_connection)
   {
