@@ -107,7 +107,6 @@ class BigBoyControl:
         data = self.parse_sensor_data(data)
         # set the pitch angle
         if self.window is None:
-            print("Window is not initialized yet..")
             return
         self.window.pitch_indicator.set_pitch_angle(data['Pitch'])
 
