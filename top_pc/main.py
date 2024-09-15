@@ -4,6 +4,12 @@ import threading
 import sys
 from controller import Controller
 
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
+
+# import MainWindow
+from main_window import MainWindow
+
 class BigBoyControl:
     def __init__(self):
         # Broadcast address and port
@@ -11,11 +17,34 @@ class BigBoyControl:
         self.PORT = 5005
         self.MESSAGE = b"Who are you?"
         self.use_controller = False
+        self.window = None
 
         # Create UDP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.devices = {}  # Dictionary to store IP and device names
+
+    def parse_sensor_data(self, data):
+        # Split the data into lines
+        lines = data.split('\n')[1:]  # Skip the first line
+
+        # Initialize an empty dictionary
+        sensor_data = {}
+
+        # Loop through each line and split by colon
+        for line in lines:
+            if line:  # Check if the line is not empty
+                key, value = line.split(': ')
+                # Convert value to float or int if possible
+                if value.isdigit():
+                    sensor_data[key] = int(value)
+                else:
+                    try:
+                        sensor_data[key] = float(value)
+                    except ValueError:
+                        sensor_data[key] = value  # Keep as string if conversion fails
+
+        return sensor_data
 
     def get_devices(self, device_name="", addr=None):
         if device_name:
@@ -39,10 +68,10 @@ class BigBoyControl:
                 device_name = data.decode().split("I am ")[1]
                 self.get_devices(device_name, addr)
             elif data.decode().startswith("data"):
-                print(data.decode())
-                # pass
-                # do something with the data
-                
+                # print(data.decode())
+                # send data to update gauge
+                self.update_gauges(data.decode())
+
     def input_stream(self):
         controller = Controller()
         t = threading.Thread(target=controller.get_controller_values)
@@ -65,11 +94,53 @@ class BigBoyControl:
         # run the input_stream function in a separate thread
         input_stream = threading.Thread(target=self.input_stream)
         input_stream.start()
-        while True:
-            pass
+        # run the GUI
+        app = QApplication(sys.argv)
+        self.window = MainWindow()
+        self.window.show()
+        sys.exit(app.exec())
+
+    # create a function to update the gauges
+
+    def update_gauges(self, data):
+        # parse the sensor data
+        data = self.parse_sensor_data(data)
+        # set the pitch angle
+        if self.window is None:
+            print("Window is not initialized yet..")
+            return
+        self.window.pitch_indicator.set_pitch_angle(data['Pitch'])
+
+        # set the roll angle
+        self.window.roll_indicator.set_roll_angle(data['Roll'])
+
+        # set the yaw angle
+        self.window.yaw_indicator.set_yaw_angle(data['Yaw'])
+
+        # set the depth value
+        self.window.depth_widget.set_depth(data['Depth'])
+
+        # set the depthStatus value
+        self.window.depth_connection.set_status(status=data['depthStatus'])
+
+        # set the imuStatus value
+        self.window.imu_connection.set_status(status=data["imuStatus"])
         
+        self.window.camera_connection.set_status(status=self.window.video_feed.status)
+
+    def refresh_component(self, component):
+        if self.window is None:
+            print("Window is not initialized yet...")
+            return
+        # ask teensy for for connection status
+        print("Refreshing components...")
+        self.sock.sendto("refresh".encode(), (self.devices['Teensy'], self.PORT))
         
+        # rerun every 5 seconds
+        QTimer.singleShot(5000, lambda: self.refresh_component(component))
+
 
 if __name__ == "__main__":
     main_frame = BigBoyControl()
     main_frame.run()
+    main_frame.refresh_component("all")

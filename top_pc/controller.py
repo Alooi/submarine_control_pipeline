@@ -6,15 +6,15 @@ class Controller:
     def __init__(self):
         pygame.init()
         pygame.joystick.init()
-        
+
         self.connection = False
 
         def check_joystick():
             if pygame.joystick.get_count() == 0:
-                print("No joystick found")
+                self.connection = False
             else:
                 self.connection = True
-    
+
         while not self.connection:
             time.sleep(5)
             check_joystick()
@@ -26,12 +26,12 @@ class Controller:
         print("Number of Axes:", self.joystick.get_numaxes())
         print("Number of Buttons:", self.joystick.get_numbuttons())
         print("Number of Hats:", self.joystick.get_numhats())
-        
+
         self.axis = {}
         self.button = {}
         self.button[9] = False
         self.hat = {}
-        
+
     def get_controller_values(self):
         pygame.event.pump()
         while True:

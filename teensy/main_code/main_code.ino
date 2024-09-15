@@ -66,6 +66,7 @@ void setup()
 
   // Scan I2C bus for devices
   Serial.println("Scanning I2C bus...");
+
   depthStatus = scanI2CBus(Wire);
   imuStatus = scanI2CBus(Wire1);
 
@@ -135,15 +136,30 @@ void loop()
       // Send controller data to control functions TODO
       // ----------------------------
     }
+    else if (strcmp(packetBuffer, "refresh") == 0)
+    {
+      // recheck status of sensors
+      depthStatus = scanI2CBus(Wire);
+      imuStatus = scanI2CBus(Wire1);
+    }
 
   }
   // Send depth sensor data to the pc
   sensor.read();
+  // check if the data from the sensor is valid
+  if (sensor.depth() > 100 or sensor.depth() < -100)
+  {
+    depthStatus = false;
+  }
+  else
+  {
+    depthStatus = true;
+  }
   // Read IMU sensor data
   // using read_euler
   // returns {roll, pitch, yaw};
   float euler[3];
-  read_euler(euler);
+  imuStatus = read_euler(euler);
   // make string to store sensor data
   String data = String(
     "data" + String("\n") +
