@@ -99,6 +99,7 @@ class BigBoyControl:
         self.window = MainWindow()
         self.window.show()
         sys.exit(app.exec())
+        
 
     # create a function to update the gauges
 
@@ -107,7 +108,6 @@ class BigBoyControl:
         data = self.parse_sensor_data(data)
         # set the pitch angle
         if self.window is None:
-            print("Window is not initialized yet..")
             return
         self.window.pitch_indicator.set_pitch_angle(data['Pitch'])
 
@@ -129,18 +129,8 @@ class BigBoyControl:
         self.window.camera_connection.set_status(status=self.window.video_feed.status)
 
     def refresh_component(self, component):
-        if self.window is None:
-            print("Window is not initialized yet...")
-            return
-        # ask teensy for for connection status
-        print("Refreshing components...")
-        self.sock.sendto("refresh".encode(), (self.devices['Teensy'], self.PORT))
-        
-        # rerun every 5 seconds
-        QTimer.singleShot(5000, lambda: self.refresh_component(component))
-
+        return
 
 if __name__ == "__main__":
     main_frame = BigBoyControl()
     main_frame.run()
-    main_frame.refresh_component("all")
