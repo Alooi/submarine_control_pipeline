@@ -9,6 +9,7 @@ from PySide6.QtCore import QTimer
 
 # import MainWindow
 from main_window import MainWindow
+import configparser
 
 class BigBoyControl:
     def __init__(self):
@@ -18,6 +19,8 @@ class BigBoyControl:
         self.MESSAGE = b"Who are you?"
         self.use_controller = False
         self.window = None
+
+        self.camera_ports = [5000, 5001]
 
         # Create UDP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -49,7 +52,7 @@ class BigBoyControl:
     def get_devices(self, device_name="", addr=None):
         if device_name:
             print(f"Device found: {device_name} at {addr[0]}")
-            self.devices[device_name] = addr[0]
+            self.devices[addr[0]] = device_name
             return self.devices
         else:
             # otherwise send broadcast message
@@ -57,10 +60,10 @@ class BigBoyControl:
 
             print("Waiting for responses from devices...")
         return self.devices
-
     def listen_to_data(self):
         # Listen for data from devices
         while True:
+            data = None
             data, addr = self.sock.recvfrom(1024)
             # send to functions
             # if data starts with "I am", then it is a device name
@@ -69,8 +72,14 @@ class BigBoyControl:
                 self.get_devices(device_name, addr)
             elif data.decode().startswith("data"):
                 # print(data.decode())
+                # send to update the network status
+                self.window.network_status.set_device_status(self.devices[addr[0]], addr[0], True)
                 # send data to update gauge
                 self.update_gauges(data.decode())
+            else:
+                # reset the status of every device
+                for device in self.devices:
+                    self.window.network_status.set_device_status(self.devices[device], device, False)
 
     def input_stream(self):
         controller = Controller()
@@ -85,19 +94,28 @@ class BigBoyControl:
                 controller_values = ("controller: " + str(controller.axis)).encode()
                 # send values to teensy
                 self.sock.sendto(controller_values, (self.devices['Teensy'], self.PORT))
-
+    
+    def refresh_stuff(self):
+        self.get_devices()
+        # if key "RPi" is in devices, then initiate video feed
+        if 'RPi' in self.devices: 
+            self.window.initiate_video_feed(self.devices['RPi'], self.camera_ports)
+        
     def run(self):
+        # run the GUI
+        app = QApplication(sys.argv)
+        self.window = MainWindow()
+        self.window.show()
         self.devices = self.get_devices()
+        # manually initialize the video feed
+        self.window.initiate_video_feed("localhost", self.camera_ports)
+        self.window.network_status.refresh_button.clicked.connect(lambda: self.refresh_stuff())
         # run the listen_to_data function in a separate thread
         data_listener = threading.Thread(target=self.listen_to_data)
         data_listener.start()
         # run the input_stream function in a separate thread
         input_stream = threading.Thread(target=self.input_stream)
         input_stream.start()
-        # run the GUI
-        app = QApplication(sys.argv)
-        self.window = MainWindow()
-        self.window.show()
         sys.exit(app.exec())
 
     # create a function to update the gauges
@@ -106,8 +124,6 @@ class BigBoyControl:
         # parse the sensor data
         data = self.parse_sensor_data(data)
         # set the pitch angle
-        if self.window is None:
-            return
         self.window.pitch_indicator.set_pitch_angle(data['Pitch'])
 
         # set the roll angle
@@ -124,22 +140,15 @@ class BigBoyControl:
 
         # set the imuStatus value
         self.window.imu_connection.set_status(status=data["imuStatus"])
-        
-        self.window.camera_connection.set_status(status=self.window.video_feed.status)
-
-    def refresh_component(self, component):
-        if self.window is None:
-            print("Window is not initialized yet...")
-            return
-        # ask teensy for for connection status
-        print("Refreshing components...")
-        self.sock.sendto("refresh".encode(), (self.devices['Teensy'], self.PORT))
-        
-        # rerun every 5 seconds
-        QTimer.singleShot(5000, lambda: self.refresh_component(component))
-
+        # self.window.camera_connection.set_status(status=self.window.video_feed.status)
 
 if __name__ == "__main__":
+    # Load configuration from setup.config
+    config = configparser.ConfigParser()
+    config.read('/home/ali/codebases/big_boy_control/setup.config')
+
+    # Update the instance variables
     main_frame = BigBoyControl()
+    main_frame.camera_ports = [config.getint('VideoFeed', 'CAMERA_PORT1', fallback=5000), config.getint('VideoFeed', 'CAMERA_PORT2', fallback=5001)]
     main_frame.run()
     main_frame.refresh_component("all")

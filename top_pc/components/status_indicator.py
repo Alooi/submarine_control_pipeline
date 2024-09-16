@@ -9,26 +9,42 @@ from PySide6.QtWidgets import QPushButton
 class NetworkStatus(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.roll_angle = 0
-        self.line_gap = 10
+        self.devices = {}
+        self.refresh_button = QPushButton("Refresh", self)
+        
+    def set_devices(self, devices):
+        self.devices = devices
+        for device in self.devices:
+            self.devices[device] = False
+        self.update()
 
-    def set_roll_angle(self, angle):
-        self.roll_angle = angle
+    def set_device_status(self, name, device, status):
+        # if the device does not exists, add it
+        if name not in self.devices:
+            self.devices[name] = status
+        else:
+            self.devices[name] = status
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(Qt.black, 1))
 
-        # Displaying a dummy text in the middle of the rectangle syaing network status
-        text_rect = self.rect()
-        # gray background
-        painter.setBrush(QColor(200, 200, 200))
-        painter.drawRect(text_rect)
-        painter.setPen(Qt.black)
-        font = painter.font()
-        font.setBold(True)
-        font.setPointSize(font.pointSize() + 2)
-        painter.setFont(font)
-        painter.drawText(text_rect, Qt.AlignCenter, "Network Status here")
+        # Draw the status indicators
+        for i, device in enumerate(self.devices):
+            if self.devices[device]:
+                color = QColor(0, 255, 0)
+            else:
+                color = QColor(255, 0, 0)
+
+            painter.setBrush(color)
+            painter.drawEllipse(20 * i, self.height() / 2 - 10, 20, 20)  # Center vertically
+
+            painter.drawText(20 * i + 25, self.height() / 2 + 5, device)  # Align text to the left middle
+
+            painter.setPen(QPen(Qt.black, 1))
+            painter.drawEllipse(20 * i, self.height() / 2 - 10, 20, 20)
+            
+        self.refresh_button.move(0, 0)
         
