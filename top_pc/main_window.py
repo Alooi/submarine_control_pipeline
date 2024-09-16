@@ -40,6 +40,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Big Black Sub")
         self.dummy_angle = 1
         self.dummy_angle2 = 1
+        self.ports = []
+        self.ip = "localhost"
 
         # Create a central widget and layout
         central_widget = QWidget()
@@ -76,14 +78,14 @@ class MainWindow(QMainWindow):
         depth_layout = QVBoxLayout()
         circular_gauges = QVBoxLayout()
         gauges_layout = QHBoxLayout()
-        video_layout = QVBoxLayout()
+        self.video_layout = QVBoxLayout()
 
         gauges_widget = QWidget()
         video_widget = QWidget()
 
         gauges_widget.setLayout(gauges_layout)
-        video_layout.addWidget(self.camera_connection)
-        video_widget.setLayout(video_layout)
+        self.video_layout.addWidget(self.camera_connection)
+        video_widget.setLayout(self.video_layout)
 
         # Add widgets to the middle splitter
         middle_splitter.addWidget(gauges_widget)
@@ -103,9 +105,6 @@ class MainWindow(QMainWindow):
         circular_gauges.addWidget(self.yaw_indicator)
         gauges_layout.addLayout(circular_gauges)
 
-        self.video_feed = VideoFeedBrowser("http://localhost:5000/video_feed")
-        video_layout.addWidget(self.video_feed)
-
         main_splitter.addWidget(
             middle_splitter
         )  # Add the middle splitter to the main one
@@ -120,11 +119,11 @@ class MainWindow(QMainWindow):
         status_widget.setLayout(status_layout)
         messages_widget.setLayout(messages_layout)
 
-        network_status = NetworkStatus()
-        messages_log = MessagesLog()
+        self.network_status = NetworkStatus()
+        self.messages_log = MessagesLog()
 
-        status_layout.addWidget(network_status)
-        messages_layout.addWidget(messages_log)
+        status_layout.addWidget(self.network_status)
+        messages_layout.addWidget(self.messages_log)
 
         bottom_splitter.addWidget(status_widget)
         bottom_splitter.addWidget(messages_widget)
@@ -135,3 +134,13 @@ class MainWindow(QMainWindow):
 
         # Set the central widget
         self.setCentralWidget(central_widget)
+
+    def initiate_video_feed(self, ip, ports):
+        for port in ports:
+            if port in self.ports:
+                continue
+            self.ports.append(port)
+            url = "http://" + self.ip + ":" + str(port) + "/video_feed"
+            print(url)
+            video_feed = VideoFeedBrowser(url)
+            self.video_layout.addWidget(video_feed)
