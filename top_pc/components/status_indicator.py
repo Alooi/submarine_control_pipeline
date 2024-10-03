@@ -11,6 +11,8 @@ class NetworkStatus(QWidget):
         super().__init__(parent)
         self.devices = {}
         self.refresh_button = QPushButton("Refresh", self)
+        self.record_button = QPushButton("Record", self)
+        self.record_status = False
         
     def set_devices(self, devices):
         self.devices = devices
@@ -24,6 +26,10 @@ class NetworkStatus(QWidget):
             self.devices[name] = status
         else:
             self.devices[name] = status
+        self.update()
+        
+    def set_record_status(self, status):
+        self.record_status = status
         self.update()
 
     def paintEvent(self, event):
@@ -47,4 +53,17 @@ class NetworkStatus(QWidget):
             painter.drawEllipse(20 * i, self.height() / 2 - 10, 20, 20)
             
         self.refresh_button.move(0, 0)
+        self.record_button.move(0, 20)
+        
+        # record status indicator
+        if self.record_status:
+            color = QColor(0, 255, 0)
+        else:
+            color = QColor(255, 0, 0)
+        painter.setBrush(color)
+        painter.drawEllipse(0, 40, 20, 20)
+        painter.drawText(25, 55, "Recording")
+        painter.setPen(QPen(Qt.black, 1))
+        painter.drawEllipse(0, 40, 20, 20)
+
         
