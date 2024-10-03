@@ -11,6 +11,9 @@ from PySide6.QtCore import QTimer
 from main_window import MainWindow
 import configparser
 
+from parse_data import SensorDataParser
+parser = SensorDataParser()
+
 class BigBoyControl:
     def __init__(self):
         # Broadcast address and port
@@ -94,13 +97,16 @@ class BigBoyControl:
                 controller_values = ("controller: " + str(controller.axis)).encode()
                 # send values to teensy
                 self.sock.sendto(controller_values, (self.devices['Teensy'], self.PORT))
-    
+
     def refresh_stuff(self):
         self.get_devices()
         # if key "RPi" is in devices, then initiate video feed
         if 'RPi' in self.devices: 
             self.window.initiate_video_feed(self.devices['RPi'], self.camera_ports)
-        
+
+    def keep_alive(self):  # (temporary solution)
+        self.window.update()
+
     def run(self):
         # run the GUI
         app = QApplication(sys.argv)
@@ -116,14 +122,17 @@ class BigBoyControl:
         # run the input_stream function in a separate thread
         input_stream = threading.Thread(target=self.input_stream)
         input_stream.start()
+        # keep the GUI alive (temporary solution)
+        timer = QTimer()
+        timer.timeout.connect(self.keep_alive)
+        timer.start(1000//60)
         sys.exit(app.exec())
-        
 
     # create a function to update the gauges
 
     def update_gauges(self, data):
         # parse the sensor data
-        data = self.parse_sensor_data(data)
+        data = parser(data)
         # set the pitch angle
         self.window.pitch_indicator.set_pitch_angle(data['Pitch'])
 

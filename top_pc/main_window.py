@@ -134,6 +134,7 @@ class MainWindow(QMainWindow):
 
         # Set the central widget
         self.setCentralWidget(central_widget)
+        
 
     def initiate_video_feed(self, ip, ports):
         for port in ports:
