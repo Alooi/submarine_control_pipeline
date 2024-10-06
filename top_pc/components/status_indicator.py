@@ -44,7 +44,7 @@ class NetworkStatus(QWidget):
         
         # Draw the grid lines starting after the refresh button
         button_height = self.refresh_button.height()
-        total_lines = len(self.devices) + len(self.other_devices)
+        total_lines = len(self.devices) + len(self.other_devices) + 1
         for line in range(total_lines):
             painter.drawLine(0, button_height + 20 * line, self.width(), button_height + 20 * line)
         
