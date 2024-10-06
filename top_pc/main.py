@@ -90,13 +90,9 @@ class BigBoyControl:
     def input_stream(self):
         controller = Controller()
         prev_controller_values = None
-        t = threading.Thread(target=controller.get_controller_values)
-        t.start()
         while True:
-            if controller.button[9]:
-                self.use_controller = not self.use_controller
-                print(f"Controller is {'on' if self.use_controller else 'off'}")
-            if self.use_controller:
+            controller.get_controller_values()
+            if controller.active:
                 # convert controller values to bytes
                 controller_values = ("controller: " + str(controller.axis)).encode()
                 # if current controller values does not equal previous controller values

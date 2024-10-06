@@ -7,6 +7,8 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <regex>
+#include <vector>
 using namespace qindesign::network;
 
 EthernetUDP Udp;
@@ -30,6 +32,35 @@ bool pc_connection = false;
 IPAddress pcIP;
 // variable to store the port
 int pcPort;
+
+// function to to control the sub
+void controlSub(std::vector<double> values)
+{
+  Serial.println("Pitch: " + String(values[0]));
+  Serial.println("Roll: " + String(values[1]));
+  Serial.println("Yaw: " + String(values[2]));
+}
+
+// function to extract the values of the controller
+std::vector<double> extractDictionaryValues(const std::string &input)
+{
+  std::vector<double> values;
+  std::regex valueRegex(R"(-?\d+\.\d+)"); // Regular expression to match floating-point numbers, including negative values
+  std::smatch match;
+
+  std::string::const_iterator searchStart(input.cbegin());
+  while (std::regex_search(searchStart, input.cend(), match, valueRegex))
+  {
+    double value = std::stod(match[0]); // Convert matched string to double
+    if (value >= -1.0 && value <= 1.0)  // Check if the value is within the range [-1.0, 1.0]
+    {
+      values.push_back(value);
+    }
+    searchStart = match.suffix().first; // Move search start position forward
+  }
+
+  return values;
+}
 
 // function to get what comamnd is sent from the pc
 bool get_command(const std::string &input, const std::string &compareTo)
@@ -153,7 +184,11 @@ void loop()
     else if (get_command(packetBuffer, "controller"))
     {
       // Send controller data to control functions TODO
-      
+      std::vector<double> values = extractDictionaryValues(packetBuffer);
+      for (int i = 0; i < values.size(); i++)
+      {
+        controlSub(values);
+      }
       // ----------------------------
     }
     else if (strcmp(packetBuffer, "refresh") == 0)
