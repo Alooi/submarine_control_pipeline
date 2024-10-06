@@ -91,7 +91,7 @@ class BigBoyControl:
                 if self.record_flag:
                     self.recorder.log_data(data)
                 # send data to update gauge
-                self.update_gauges(data.decode())
+                self.update_gauges(data)
             elif data.decode().startswith("message"):
                 # send message to the message log
                 pass

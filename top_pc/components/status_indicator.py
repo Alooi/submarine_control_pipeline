@@ -78,17 +78,19 @@ class NetworkStatus(QWidget):
             painter.drawText(40, y_position + 5, device)  # Align text to the left middle
             
         self.refresh_button.move(0, 0)
-        self.record_button.move(0, 20)
+        
+        self.record_button.move(90, 0)
         
         # record status indicator
+        y_position = self.refresh_button.height() + 20 * (len(self.devices) + len(self.other_devices)) + 10
         if self.record_status:
             color = QColor(0, 255, 0)
         else:
             color = QColor(255, 0, 0)
         painter.setBrush(color)
-        painter.drawEllipse(0, 40, 20, 20)
-        painter.drawText(25, 55, "Recording")
+        painter.drawEllipse(10, y_position - 10, 20, 20)  # Center vertically in the line
+        painter.drawText(40, y_position + 5, "Recording")  # Align text to the left middle
         painter.setPen(QPen(Qt.black, 1))
-        painter.drawEllipse(0, 40, 20, 20)
+        painter.drawEllipse(10, y_position - 10, 20, 20)
 
         
