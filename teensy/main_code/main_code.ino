@@ -4,6 +4,9 @@
 #include <QNEthernet.h>
 #include <Wire.h>
 #include "MS5837.h"
+#include <iostream>
+#include <string>
+#include <sstream>
 using namespace qindesign::network;
 
 EthernetUDP Udp;
@@ -27,6 +30,22 @@ bool pc_connection = false;
 IPAddress pcIP;
 // variable to store the port
 int pcPort;
+
+// function to get what comamnd is sent from the pc
+bool get_command(const std::string &input, const std::string &compareTo)
+{
+  std::stringstream ss(input);
+  std::string firstPart;
+
+  // Split the string by ':'
+  if (std::getline(ss, firstPart, ':'))
+  {
+    // Compare the first part to the given string
+    return firstPart == compareTo;
+  }
+
+  return false; // Return false if splitting fails
+}
 
 // Function to scan an I2C bus for devices
 bool scanI2CBus(TwoWire &wire)
@@ -116,8 +135,8 @@ void loop()
     // Null-terminate the string
     packetBuffer[packetSize] = '\0';
 
-    Serial.print("Received packet: ");
-    Serial.println(packetBuffer);
+    // Serial.print("Received packet: ");
+    // Serial.println(packetBuffer);
 
     // if MESSAGE = b"Who are you?", send back "Teensy"
     if (strcmp(packetBuffer, "Who are you?") == 0)
@@ -131,9 +150,10 @@ void loop()
       Udp.endPacket();
     }
     // if controller command
-    else if (strcmp(packetBuffer, "Controller") == 0)
+    else if (get_command(packetBuffer, "controller"))
     {
       // Send controller data to control functions TODO
+      
       // ----------------------------
     }
     else if (strcmp(packetBuffer, "refresh") == 0)

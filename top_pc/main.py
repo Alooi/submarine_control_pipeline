@@ -22,7 +22,7 @@ class BigBoyControl:
         self.MESSAGE = b"Who are you?"
         self.use_controller = False
         self.window = None
-        self.pi_present = False
+        self.teensy_address = None
 
         self.camera_urls = [5000, 5001]
 
@@ -57,6 +57,8 @@ class BigBoyControl:
         if device_name:
             print(f"Device found: {device_name} at {addr[0]}")
             self.devices[addr[0]] = device_name
+            if device_name == "Teensy":
+                self.teensy_address = addr[0]
             return self.devices
         else:
             # otherwise send broadcast message
@@ -87,6 +89,7 @@ class BigBoyControl:
 
     def input_stream(self):
         controller = Controller()
+        prev_controller_values = None
         t = threading.Thread(target=controller.get_controller_values)
         t.start()
         while True:
@@ -96,8 +99,11 @@ class BigBoyControl:
             if self.use_controller:
                 # convert controller values to bytes
                 controller_values = ("controller: " + str(controller.axis)).encode()
-                # send values to teensy
-                self.sock.sendto(controller_values, (self.devices['Teensy'], self.PORT))
+                # if current controller values does not equal previous controller values
+                if controller_values != prev_controller_values:
+                    prev_controller_values = controller_values
+                    # send values to teensy
+                    self.sock.sendto(controller_values, (self.teensy_address, self.PORT))
 
     def refresh_stuff(self):
         self.get_devices()
@@ -129,10 +135,10 @@ class BigBoyControl:
         # run the input_stream function in a separate thread
         input_stream = threading.Thread(target=self.input_stream)
         input_stream.start()
-        # keep the GUI alive (temporary solution)
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.keep_alive)
-        self.timer.start(1000 // 60)
+        # # keep the GUI alive (temporary solution)
+        # self.timer = QTimer()
+        # self.timer.timeout.connect(self.keep_alive)
+        # self.timer.start(1000 // 60)
         sys.exit(app.exec())
 
     # create a function to update the gauges
