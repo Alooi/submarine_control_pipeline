@@ -40,8 +40,11 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Big Black Sub")
         self.dummy_angle = 1
         self.dummy_angle2 = 1
-        self.ports = []
+        self.urls = []
         self.ip = "localhost"
+        
+        # set the minimum size of the window
+        self.setMinimumSize(1024, 720)
 
         # Create a central widget and layout
         central_widget = QWidget()
@@ -136,12 +139,12 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         
 
-    def initiate_video_feed(self, ip, ports):
-        for port in ports:
-            if port in self.ports:
+    def initiate_video_feed(self, ip, urls):
+        for url in urls:
+            if url in self.urls:
                 continue
-            self.ports.append(port)
-            url = "http://" + self.ip + ":" + str(port) + "/video_feed"
+            self.urls.append(url)
+            url = "http://" + ip + ":" + "5000" + "/" + url
             print(url)
             video_feed = VideoFeedBrowser(url)
             self.video_layout.addWidget(video_feed)

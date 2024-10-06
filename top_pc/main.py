@@ -22,8 +22,9 @@ class BigBoyControl:
         self.MESSAGE = b"Who are you?"
         self.use_controller = False
         self.window = None
+        self.pi_present = False
 
-        self.camera_ports = [5000, 5001]
+        self.camera_urls = [5000, 5001]
 
         # Create UDP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -101,8 +102,15 @@ class BigBoyControl:
     def refresh_stuff(self):
         self.get_devices()
         # if key "RPi" is in devices, then initiate video feed
-        if 'RPi' in self.devices: 
-            self.window.initiate_video_feed(self.devices['RPi'], self.camera_ports)
+        self.check_pi()
+
+    def check_pi(self):
+        # check if the pi is connected
+        for device in self.devices:
+            if self.devices[device] == "RPi":
+                self.window.initiate_video_feed(device, self.camera_urls)
+                return True
+        return False
 
     def keep_alive(self):  # (temporary solution)
         self.window.update()
@@ -114,7 +122,6 @@ class BigBoyControl:
         self.window.show()
         self.devices = self.get_devices()
         # manually initialize the video feed
-        self.window.initiate_video_feed("localhost", self.camera_ports)
         self.window.network_status.refresh_button.clicked.connect(lambda: self.refresh_stuff())
         # run the listen_to_data function in a separate thread
         data_listener = threading.Thread(target=self.listen_to_data)
@@ -123,9 +130,9 @@ class BigBoyControl:
         input_stream = threading.Thread(target=self.input_stream)
         input_stream.start()
         # keep the GUI alive (temporary solution)
-        timer = QTimer()
-        timer.timeout.connect(self.keep_alive)
-        timer.start(1000//60)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.keep_alive)
+        self.timer.start(1000 // 60)
         sys.exit(app.exec())
 
     # create a function to update the gauges
@@ -159,5 +166,5 @@ if __name__ == "__main__":
 
     # Update the instance variables
     main_frame = BigBoyControl()
-    main_frame.camera_ports = [config.getint('VideoFeed', 'CAMERA_PORT1', fallback=5000), config.getint('VideoFeed', 'CAMERA_PORT2', fallback=5001)]
+    main_frame.camera_urls = ["video_feed_1", "video_feed_2"]
     main_frame.run()
