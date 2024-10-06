@@ -14,6 +14,8 @@ import configparser
 from parse_data import SensorDataParser
 parser = SensorDataParser()
 
+from recorder import DataLogger
+
 class BigBoyControl:
     def __init__(self):
         # Broadcast address and port
@@ -22,6 +24,9 @@ class BigBoyControl:
         self.MESSAGE = b"Who are you?"
         self.use_controller = False
         self.window = None
+        
+        self.record_flag = False
+        self.recorder = DataLogger()
         self.teensy_address = None
         self.new_devices = {}
 
@@ -53,7 +58,6 @@ class BigBoyControl:
                         sensor_data[key] = value  # Keep as string if conversion fails
 
         return sensor_data
-
     def get_devices(self, device_name="", addr=None):
         if device_name:
             # print(f"Device found: {device_name} at {addr[0]}")
@@ -80,9 +84,12 @@ class BigBoyControl:
                 device_name = data.decode().split("I am ")[1]
                 self.get_devices(device_name, addr)
             elif data.decode().startswith("data"):
-                # print(data.decode())
+                data = parser(data.decode())
                 # send to update the network status
                 # self.window.network_status.set_device_status(self.devices[addr[0]], addr[0], True)
+                # if record flag is true, then log the data
+                if self.record_flag:
+                    self.recorder.log_data(data)
                 # send data to update gauge
                 self.update_gauges(data.decode())
             elif data.decode().startswith("message"):
@@ -131,6 +138,14 @@ class BigBoyControl:
 
     def keep_alive(self):  # (temporary solution)
         self.refresh_stuff()
+        
+    def record_data_switch(self):
+        self.record_flag = not self.record_flag
+        self.window.network_status.set_record_status(self.record_flag)
+        if self.record_flag:
+            self.recorder.start_recording()
+        else:
+            self.recorder.stop_recording()
 
     def run(self):
         # run the GUI
@@ -140,6 +155,7 @@ class BigBoyControl:
         self.devices = self.get_devices()
         # manually initialize the video feed
         self.window.network_status.refresh_button.clicked.connect(lambda: self.refresh_stuff())
+        self.window.network_status.record_button.clicked.connect(lambda: self.record_data_switch())
         # run the listen_to_data function in a separate thread
         data_listener = threading.Thread(target=self.listen_to_data)
         data_listener.start()
@@ -155,8 +171,6 @@ class BigBoyControl:
     # create a function to update the gauges
 
     def update_gauges(self, data):
-        # parse the sensor data
-        data = parser(data)
         # set the pitch angle
         self.window.pitch_indicator.set_pitch_angle(data['Pitch'])
 
