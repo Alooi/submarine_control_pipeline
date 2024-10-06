@@ -29,4 +29,4 @@ class MessagesLog(QWidget):
         font.setBold(True)
         font.setPointSize(font.pointSize() + 2)
         painter.setFont(font)
-        painter.drawText(text_rect, Qt.AlignCenter, "Messages Log here")
+        painter.drawText(text_rect, Qt.AlignCenter, "Messages Log here\n TO DO")

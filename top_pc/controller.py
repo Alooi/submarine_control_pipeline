@@ -19,7 +19,7 @@ class Controller:
 
         self.axis = {}
         self.button = {}
-        self.active = False
+        self.active = True # controller is active by default
         self.hat = {}
 
     def get_controller_values(self):

@@ -23,6 +23,7 @@ class BigBoyControl:
         self.use_controller = False
         self.window = None
         self.teensy_address = None
+        self.new_devices = {}
 
         self.camera_urls = [5000, 5001]
 
@@ -55,8 +56,10 @@ class BigBoyControl:
 
     def get_devices(self, device_name="", addr=None):
         if device_name:
-            print(f"Device found: {device_name} at {addr[0]}")
+            # print(f"Device found: {device_name} at {addr[0]}")
             self.devices[addr[0]] = device_name
+            # set the device status to true
+            self.window.network_status.set_device_status(device_name, addr[0], True)
             if device_name == "Teensy":
                 self.teensy_address = addr[0]
             return self.devices
@@ -64,7 +67,7 @@ class BigBoyControl:
             # otherwise send broadcast message
             self.sock.sendto(self.MESSAGE, (self.BROADCAST_IP, self.PORT))
 
-            print("Waiting for responses from devices...")
+            # print("Waiting for responses from devices...")
         return self.devices
     def listen_to_data(self):
         # Listen for data from devices
@@ -79,20 +82,23 @@ class BigBoyControl:
             elif data.decode().startswith("data"):
                 # print(data.decode())
                 # send to update the network status
-                self.window.network_status.set_device_status(self.devices[addr[0]], addr[0], True)
+                # self.window.network_status.set_device_status(self.devices[addr[0]], addr[0], True)
                 # send data to update gauge
                 self.update_gauges(data.decode())
-            else:
-                # reset the status of every device
-                for device in self.devices:
-                    self.window.network_status.set_device_status(self.devices[device], device, False)
+            elif data.decode().startswith("message"):
+                # send message to the message log
+                pass
 
     def input_stream(self):
         controller = Controller()
+        controller_status = controller.active
         prev_controller_values = None
         while True:
             controller.get_controller_values()
             if controller.active:
+                if not controller_status:
+                    controller_status = True
+                    self.window.network_status.set_other_status("controller", True)
                 # convert controller values to bytes
                 controller_values = ("controller: " + str(controller.axis)).encode()
                 # if current controller values does not equal previous controller values
@@ -100,8 +106,16 @@ class BigBoyControl:
                     prev_controller_values = controller_values
                     # send values to teensy
                     self.sock.sendto(controller_values, (self.teensy_address, self.PORT))
+            else:
+                if controller_status:
+                    controller_status = False
+                    self.window.network_status.set_other_status("controller", False)
 
     def refresh_stuff(self):
+        # set all devices status to False
+        for device in self.devices:
+            self.window.network_status.set_device_status(self.devices[device], device, False)
+        # get the devices again
         self.get_devices()
         # if key "RPi" is in devices, then initiate video feed
         self.check_pi()
@@ -111,11 +125,12 @@ class BigBoyControl:
         for device in self.devices:
             if self.devices[device] == "RPi":
                 self.window.initiate_video_feed(device, self.camera_urls)
+                self.window.camera_connection.set_status(True)
                 return True
         return False
 
     def keep_alive(self):  # (temporary solution)
-        self.window.update()
+        self.refresh_stuff()
 
     def run(self):
         # run the GUI
@@ -131,10 +146,10 @@ class BigBoyControl:
         # run the input_stream function in a separate thread
         input_stream = threading.Thread(target=self.input_stream)
         input_stream.start()
-        # # keep the GUI alive (temporary solution)
-        # self.timer = QTimer()
-        # self.timer.timeout.connect(self.keep_alive)
-        # self.timer.start(1000 // 60)
+        # keep the GUI alive (temporary solution)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.keep_alive)
+        self.timer.start(2000)
         sys.exit(app.exec())
 
     # create a function to update the gauges
