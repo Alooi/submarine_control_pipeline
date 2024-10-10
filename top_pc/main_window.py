@@ -42,7 +42,8 @@ class MainWindow(QMainWindow):
         self.dummy_angle2 = 1
         self.urls = []
         self.ip = "localhost"
-        
+        self.video_feeds = []
+
         # set the minimum size of the window
         self.setMinimumSize(1024, 720)
 
@@ -75,7 +76,7 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(logo1)
         top_layout.addWidget(logo2)
 
-        # main_splitter.addWidget(top_widget)
+        main_splitter.addWidget(top_widget)
 
         # Middle part (gauges and video feed)
         depth_layout = QVBoxLayout()
@@ -137,7 +138,6 @@ class MainWindow(QMainWindow):
 
         # Set the central widget
         self.setCentralWidget(central_widget)
-        
 
     def initiate_video_feed(self, ip, urls):
         for url in urls:
@@ -147,4 +147,5 @@ class MainWindow(QMainWindow):
             url = "http://" + ip + ":" + "5000" + "/" + url
             print(url)
             video_feed = VideoFeedBrowser(url)
+            self.video_feeds.append(video_feed)
             self.video_layout.addWidget(video_feed)

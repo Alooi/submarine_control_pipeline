@@ -15,6 +15,7 @@ from parse_data import SensorDataParser
 parser = SensorDataParser()
 
 from recorder import DataLogger
+from video_feed_opencv import VideoFeedOpencv
 
 class BigBoyControl:
     def __init__(self):
@@ -24,9 +25,10 @@ class BigBoyControl:
         self.MESSAGE = b"Who are you?"
         self.use_controller = False
         self.window = None
-        
+
         self.record_flag = False
         self.recorder = DataLogger()
+        self.video_feed = VideoFeedOpencv(["video_feed_1", "video_feed_2"])
         self.teensy_address = None
         self.new_devices = {}
 
@@ -90,6 +92,7 @@ class BigBoyControl:
                 # if record flag is true, then log the data
                 if self.record_flag:
                     self.recorder.log_data(data)
+                    # self.video_feed.get_frame(self.recorder.video_file)
                 # send data to update gauge
                 self.update_gauges(data)
             elif data.decode().startswith("message"):
@@ -131,19 +134,20 @@ class BigBoyControl:
         # check if the pi is connected
         for device in self.devices:
             if self.devices[device] == "RPi":
-                self.window.initiate_video_feed(device, self.camera_urls)
+                # self.window.initiate_video_feed(device, self.camera_urls)
+                self.video_feed.set_urls(device)
                 self.window.camera_connection.set_status(True)
                 return True
         return False
 
     def keep_alive(self):  # (temporary solution)
         self.refresh_stuff()
-        
+
     def record_data_switch(self):
         self.record_flag = not self.record_flag
         self.window.network_status.set_record_status(self.record_flag)
         if self.record_flag:
-            self.recorder.start_recording()
+            self.recorder.start_recording(self.video_feed)
         else:
             self.recorder.stop_recording()
 
