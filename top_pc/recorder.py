@@ -6,7 +6,8 @@ import cv2
 class DataLogger:
     def __init__(self):
         self.file_path = None
-        self.video_file_path = None
+        self.video_file_path_1 = None
+        self.video_file_path_2 = None
         self.file = None
         self.video_file = None
         self.writer = None
@@ -17,9 +18,6 @@ class DataLogger:
         self.writer = csv.writer(self.file)
         self.writer.writerow(['Timestamp', 'Data'])
 
-    def _initialize_video(self):
-        self.video_file = cv2.VideoWriter(self.video_file_path, cv2.VideoWriter_fourcc(*'mp4v'), 30, (640, 480))
-
     def start_recording(self, video_opencv):
         self.video_feed = video_opencv
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -29,18 +27,21 @@ class DataLogger:
         except FileExistsError:
             pass
         self.file_path = f"records/recording_{timestamp}.csv"
-        self.video_file_path = f"records/recording_{timestamp}.mp4"
+        self.video_file_path = f"records/recording_{timestamp}"
         # print the full path from current directory
-        print("recording started on: ", os.path.join(os.getcwd(), self.file_path))
+        print("sensor recording started on: ", os.path.join(os.getcwd(), self.file_path))
+        print("video recording started on: ", os.path.join(os.getcwd(), self.video_file_path))
         self._initialize_csv()
-        self.video_feed.start_recording(self.video_file)
+        for feed in self.video_feed:
+            feed.start_recording(self.video_file_path + "_" + feed.feed_title + ".mp4")
 
     def stop_recording(self):
         if self.file:
             self.file.close()
             self.file = None
             self.writer = None
-        self.video_feed.stop_recording()
+        for feed in self.video_feed:
+            feed.stop_recording()
 
     def log_data(self, data):
         if self.writer:
@@ -48,5 +49,3 @@ class DataLogger:
             self.writer.writerow([timestamp, data])
         else:
             raise RuntimeError("Recording has not been started. Call start_recording() first.")
-        if self.video_feed:
-            self.video_feed.get_frame(self.video_file)

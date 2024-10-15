@@ -35,17 +35,26 @@ def generate_frames(camera_index):
 def video_feed_1():
     logging.info("Starting the video feed 1")
     return Response(
-        generate_frames(0), mimetype="multipart/x-mixed-replace; boundary=frame"
+        generate_frames(cameras[0]), mimetype="multipart/x-mixed-replace; boundary=frame"
     )
 
 
 @app.route("/video_feed_2")
 def video_feed_2():
     return Response(
-        generate_frames(1), mimetype="multipart/x-mixed-replace; boundary=frame"
+        generate_frames(cameras[1]), mimetype="multipart/x-mixed-replace; boundary=frame"
     )
 
 
 if __name__ == "__main__":
+    # find available cameras indices
+    logging.info("Finding available cameras")
+    cameras = []
+    for i in range(10):
+        camera = cv2.VideoCapture(i)
+        if camera.isOpened():
+            logging.info(f"Camera {i} is available")
+            cameras.append(i)
+        camera.release()
     logging.info("Starting the Flask app")
     app.run(host="0.0.0.0", port=5000)

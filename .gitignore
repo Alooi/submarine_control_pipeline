@@ -2,3 +2,5 @@
 __pycache__/
 *.csv
 top_pc/components/__pycache__/
+*.mp4
+*.pkl

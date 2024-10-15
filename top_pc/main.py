@@ -15,7 +15,7 @@ from parse_data import SensorDataParser
 parser = SensorDataParser()
 
 from recorder import DataLogger
-from video_feed_opencv import VideoFeedOpencv
+from opencv_communicator import opencv_communicator
 
 class BigBoyControl:
     def __init__(self):
@@ -28,9 +28,10 @@ class BigBoyControl:
 
         self.record_flag = False
         self.recorder = DataLogger()
-        self.video_feed = VideoFeedOpencv(["video_feed_1", "video_feed_2"])
+        self.video_feed = []
         self.teensy_address = None
         self.new_devices = {}
+        self.pi_exist = False
 
         self.camera_urls = [5000, 5001]
 
@@ -133,10 +134,16 @@ class BigBoyControl:
     def check_pi(self):
         # check if the pi is connected
         for device in self.devices:
-            if self.devices[device] == "RPi":
+            if self.devices[device] == "RPi" and not self.pi_exist:
                 # self.window.initiate_video_feed(device, self.camera_urls)
-                self.video_feed.set_urls(device)
+                # self.video_feed.set_urls(device)
                 self.window.camera_connection.set_status(True)
+                for url in self.camera_urls:
+                    full_url = f"http://{device}:5000/{url}"
+                    self.video_feed.append(opencv_communicator(full_url))
+                self.pi_exist = True
+                for feed in self.video_feed:
+                    feed.start_opencv()
                 return True
         return False
 
