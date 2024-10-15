@@ -15,6 +15,7 @@ from parse_data import SensorDataParser
 parser = SensorDataParser()
 
 from recorder import DataLogger
+from opencv_communicator import opencv_communicator
 
 class BigBoyControl:
     def __init__(self):
@@ -24,11 +25,13 @@ class BigBoyControl:
         self.MESSAGE = b"Who are you?"
         self.use_controller = False
         self.window = None
-        
+
         self.record_flag = False
         self.recorder = DataLogger()
+        self.video_feed = []
         self.teensy_address = None
         self.new_devices = {}
+        self.pi_exist = False
 
         self.camera_urls = [5000, 5001]
 
@@ -90,6 +93,7 @@ class BigBoyControl:
                 # if record flag is true, then log the data
                 if self.record_flag:
                     self.recorder.log_data(data)
+                    # self.video_feed.get_frame(self.recorder.video_file)
                 # send data to update gauge
                 self.update_gauges(data)
             elif data.decode().startswith("message"):
@@ -130,20 +134,27 @@ class BigBoyControl:
     def check_pi(self):
         # check if the pi is connected
         for device in self.devices:
-            if self.devices[device] == "RPi":
-                self.window.initiate_video_feed(device, self.camera_urls)
+            if self.devices[device] == "RPi" and not self.pi_exist:
+                # self.window.initiate_video_feed(device, self.camera_urls)
+                # self.video_feed.set_urls(device)
                 self.window.camera_connection.set_status(True)
+                for url in self.camera_urls:
+                    full_url = f"http://{device}:5000/{url}"
+                    self.video_feed.append(opencv_communicator(full_url))
+                self.pi_exist = True
+                for feed in self.video_feed:
+                    feed.start_opencv()
                 return True
         return False
 
     def keep_alive(self):  # (temporary solution)
         self.refresh_stuff()
-        
+
     def record_data_switch(self):
         self.record_flag = not self.record_flag
         self.window.network_status.set_record_status(self.record_flag)
         if self.record_flag:
-            self.recorder.start_recording()
+            self.recorder.start_recording(self.video_feed)
         else:
             self.recorder.stop_recording()
 
