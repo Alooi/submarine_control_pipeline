@@ -3,4 +3,6 @@ __pycache__/
 *.csv
 top_pc/components/__pycache__/
 *.mp4
-*.pkl
+top_pc/build/
+top_pc/dist/
+*.spec
