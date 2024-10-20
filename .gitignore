@@ -6,3 +6,5 @@ top_pc/components/__pycache__/
 top_pc/build/
 top_pc/dist/
 *.spec
+teensy/main_code/eigen
+teensy/main_code/Servo

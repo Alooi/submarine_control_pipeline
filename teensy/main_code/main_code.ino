@@ -1,6 +1,9 @@
 // include myAHRS+ library
 #include "myAHRS_plus.h"
+#include "eigen.h"      // Calls main Eigen matrix class library
+#include <Eigen/LU>     // Calls inverse, determinant, LU decomp., etc.
 
+#include "Servo.h"
 #include <QNEthernet.h>
 #include <Wire.h>
 #include "MS5837.h"
@@ -33,12 +36,63 @@ IPAddress pcIP;
 // variable to store the port
 int pcPort;
 
+#define SERVO1_PWM_PIN 2 // MAIN SERVO
+#define SERVO2_PWM_PIN 3 // TAIL SERVO TOP
+#define SERVO3_PWM_PIN 4 // TAIL SERVO BOTTOM LEFT (LOOKING FORWARD ORIENTATION)
+#define SERVO4_PWM_PIN 5 // TAIL SERVO BOTTOM RIGHT (LOOKING FORWARD ORIENTATION)
+#define SERVO5_PWM_PIN 6 // SPARE PWM
+
+Servo servo1_;
+Servo servo2_;
+Servo servo3_;
+Servo servo4_;
+Servo servo5_;
+
+
+
 // function to to control the sub
 void controlSub(std::vector<double> values)
 {
   Serial.println("Pitch: " + String(values[0]));
   Serial.println("Roll: " + String(values[1]));
   Serial.println("Yaw: " + String(values[2]));
+
+  // Define joystick input as a 3x1 vector (yaw, pitch, roll)
+  Eigen::Vector3f joystickInput;
+  joystickInput << float(values[0]), float(values[1]), float(values[2]);
+
+        // Define the 4x3 transformation matrix for yaw, pitch, and roll mapping
+        Eigen::Matrix<float, 4, 3> A;
+        A <<  1,  -1,  -1,   // Servo 1
+             -1,  -1, -1,   // Servo 2
+              1,  1, -1,   // Servo 3
+             -1,  1,  -1;   // Servo 4
+
+        // Perform matrix multiplication to get servo commands (4x1 vector)
+  Eigen::Vector4f servoCommands = A * joystickInput;
+
+        // Map the servo commands to appropriate PWM values (1000–2000 µs typical range)
+  float pwm_min = 1000.0;
+  float pwm_max = 2000.0;
+  float pwm_neutral = 1500.0;  // Neutral position
+
+  for (int i = 0; i < 4; i++) {
+    // Scale the commands to the PWM range
+    servoCommands[i] = pwm_neutral + (servoCommands[i] * (pwm_max - pwm_min) / 2);
+    }
+
+    // Update the servos with calculated commands (scaled to PWM)
+    servo1_.writeMicroseconds(servoCommands[0]);  // Send command to Servo 1
+    servo2_.writeMicroseconds(servoCommands[1]);  // Send command to Servo 2
+    servo3_.writeMicroseconds(servoCommands[2]);  // Send command to Servo 3
+    servo4_.writeMicroseconds(servoCommands[3]);  // Send command to Servo 4
+
+    // Debugging output
+    // Serial.println("Servo Commands: ");
+    // Serial.println(servoCommands[0]);
+    // Serial.println(servoCommands[1]);
+    // Serial.println(servoCommands[2]);
+    // Serial.println(servoCommands[3]);
 }
 
 // function to extract the values of the controller
@@ -93,6 +147,10 @@ bool scanI2CBus(TwoWire &wire)
   }
   return false;
 }
+
+
+
+
 
 void setup()
 {
@@ -149,6 +207,13 @@ void setup()
   {
     Serial.println("Sensor initialization failed");
   }
+
+  servo1_.attach(SERVO1_PWM_PIN);    // attaches the servo on pin
+  servo2_.attach(SERVO2_PWM_PIN);    // attaches the servo on pin
+  servo3_.attach(SERVO3_PWM_PIN);    // attaches the servo on pin
+  servo4_.attach(SERVO4_PWM_PIN);    // attaches the servo on pin
+  servo5_.attach(SERVO5_PWM_PIN);    // attaches the servo on pin
+
 
 }
 
@@ -232,6 +297,7 @@ void loop()
   if (!pc_connection)
   {
     Serial.println("No PC connection");
+    delay(2000);
   }
   else
   {
