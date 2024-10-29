@@ -26,10 +26,15 @@ class BigBoyControl:
         self.use_controller = False
         self.window = None
 
+        # communication flags
+        self.send_record_signal = False
+        self.send_stop_record_signal = False
+
         self.record_flag = False
         self.recorder = DataLogger()
         self.video_feed = []
         self.teensy_address = None
+        self.RPi_address = None
         self.new_devices = {}
         self.pi_exist = False
 
@@ -69,6 +74,8 @@ class BigBoyControl:
             self.window.network_status.set_device_status(device_name, addr[0], True)
             if device_name == "Teensy":
                 self.teensy_address = addr[0]
+            elif device_name == "RPi":
+                self.RPi_address = addr[0]
             return self.devices
         else:
             # otherwise send broadcast message
@@ -155,8 +162,15 @@ class BigBoyControl:
         self.window.network_status.set_record_status(self.record_flag)
         if self.record_flag:
             self.recorder.start_recording(self.video_feed)
+            # tell RPi to start recording
+            self.sock.sendto(
+                ("start_recording " + self.recorder.video_file_path).encode(),
+                (self.RPi_address, self.PORT),
+            )
         else:
             self.recorder.stop_recording()
+            # tell RPi to stop recording
+            self.sock.sendto("stop_recording".encode(), (self.RPi_address, self.PORT))
 
     def run(self):
         # run the GUI
