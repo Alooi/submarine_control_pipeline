@@ -29,8 +29,8 @@ class LEDIndicator(QWidget):
         painter.setBrush(self.color)
         painter.drawEllipse(0, 0, 20, 20)
 
-        # draw text after 20 pixels
-        painter.drawText(20, 0, self.width(), self.height(), Qt.AlignCenter, self.label)
+        # draw text closer to the circle
+        painter.drawText(25, 0, self.width() - 25, self.height(), Qt.AlignVCenter | Qt.AlignLeft, self.label)
 
         # draw border
         painter.setPen(QPen(Qt.black, 1))

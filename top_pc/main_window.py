@@ -12,6 +12,7 @@ from components.status_indicator import NetworkStatus
 from components.messages_indicator import MessagesLog
 from components.Indicator_Viz import LEDIndicator
 from components.video_feed_browser import VideoFeedBrowser
+from components.Obstacle_Viz import ObstacleWidget  # Import ObstacleWidget
 
 # import size policy
 from PySide6.QtWidgets import QSizePolicy
@@ -30,7 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 
-from PySide6.QtWidgets import QSplitter
+from PySide6.QtWidgets import QSplitter, QFrame  # Add QFrame import
 
 
 class MainWindow(QMainWindow):
@@ -57,8 +58,9 @@ class MainWindow(QMainWindow):
         bottom_splitter = QSplitter(Qt.Horizontal)  # Bottom splitter (horizontal)
 
         self.depth_connection = LEDIndicator(label="Depth Sensor")
+        self.down_echo_connection = LEDIndicator(label="Down-Echo Sensor")
+        self.front_echo_connection = LEDIndicator(label="Front-Echo Sensor")
         self.imu_connection = LEDIndicator(label="IMU Sensor")
-        self.camera_connection = LEDIndicator(label="Camera Feed")
 
         layout.addWidget(main_splitter)
 
@@ -82,27 +84,62 @@ class MainWindow(QMainWindow):
         depth_layout = QVBoxLayout()
         circular_gauges = QVBoxLayout()
         gauges_layout = QHBoxLayout()
-        self.video_layout = QVBoxLayout()
 
-        gauges_widget = QWidget()
-        video_widget = QWidget()
+        # Create left-side indicator layout (network status only)
+        left_indicator_layout = QVBoxLayout()
+        left_indicator_frame = QFrame()
+        left_indicator_frame.setLayout(left_indicator_layout)
+        left_indicator_frame.setStyleSheet("QFrame { border: 2px solid #444; border-radius: 8px; }")
 
-        gauges_widget.setLayout(gauges_layout)
-        self.video_layout.addWidget(self.camera_connection)
-        video_widget.setLayout(self.video_layout)
+        self.network_status = NetworkStatus()
+        left_indicator_layout.addWidget(self.network_status)
+
+        # Wrap gauges in a QFrame
+        gauges_frame = QFrame()
+        gauges_frame.setLayout(gauges_layout)
+        gauges_frame.setStyleSheet("QFrame { border: 2px solid #444; border-radius: 8px; }")
+
+        # # Wrap video feed in a QFrame
+        # video_frame = QFrame()
+        # video_frame.setStyleSheet("QFrame { border: 2px solid #444; border-radius: 8px; }")
 
         # Add widgets to the middle splitter
-        middle_splitter.addWidget(gauges_widget)
-        middle_splitter.addWidget(video_widget)
+        middle_splitter.addWidget(left_indicator_frame)
+        middle_splitter.addWidget(gauges_frame)
+        # middle_splitter.addWidget(video_frame)
+
+        # Set splitter sizes: 1/5 for indicators, 4/5 for gauges/depth
+        middle_splitter.setSizes([int(self.width() * 1/5), int(self.width() * 4/5)])
 
         self.roll_indicator = RollIndicator()
         self.pitch_indicator = PitchIndicator()
         self.yaw_indicator = YawIndicator()
         self.depth_widget = DepthWidget()
 
+        # Wrap depth in a QFrame
+        depth_frame = QFrame()
+        depth_frame.setLayout(depth_layout)
+        depth_frame.setStyleSheet("QFrame { border: 2px solid #444; border-radius: 8px; }")
+
         depth_layout.addWidget(self.depth_connection)
+        depth_layout.addWidget(self.down_echo_connection)
         depth_layout.addWidget(self.depth_widget)
-        gauges_layout.addLayout(depth_layout)
+
+        # Obstacle avoidance layout
+        obstacle_layout = QVBoxLayout()
+        obstacle_frame = QFrame()
+        obstacle_frame.setLayout(obstacle_layout)
+        obstacle_frame.setStyleSheet("QFrame { border: 2px solid #444; border-radius: 8px; }")
+        obstacle_layout.addWidget(self.front_echo_connection)
+
+        # Add horizontal obstacle indicator
+        self.obstacle_widget = ObstacleWidget()
+        obstacle_layout.addWidget(self.obstacle_widget)
+
+        # Add both frames to gauges_layout
+        gauges_layout.addWidget(depth_frame)
+        gauges_layout.addWidget(obstacle_frame)
+
         circular_gauges.addWidget(self.imu_connection)
         circular_gauges.addWidget(self.roll_indicator)
         circular_gauges.addWidget(self.pitch_indicator)
@@ -113,24 +150,16 @@ class MainWindow(QMainWindow):
             middle_splitter
         )  # Add the middle splitter to the main one
 
-        # Bottom part (status and messages)
-        status_layout = QVBoxLayout()
+        # Bottom part (messages only)
         messages_layout = QVBoxLayout()
+        messages_frame = QFrame()
+        messages_frame.setLayout(messages_layout)
+        messages_frame.setStyleSheet("QFrame { border: 2px solid #444; border-radius: 8px; }")
 
-        status_widget = QWidget()
-        messages_widget = QWidget()
-
-        status_widget.setLayout(status_layout)
-        messages_widget.setLayout(messages_layout)
-
-        self.network_status = NetworkStatus()
         self.messages_log = MessagesLog()
-
-        status_layout.addWidget(self.network_status)
         messages_layout.addWidget(self.messages_log)
 
-        bottom_splitter.addWidget(status_widget)
-        bottom_splitter.addWidget(messages_widget)
+        bottom_splitter.addWidget(messages_frame)
 
         main_splitter.addWidget(
             bottom_splitter

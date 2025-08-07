@@ -137,7 +137,8 @@ class BigBoyControl:
             if self.devices[device] == "RPi" and not self.pi_exist:
                 # self.window.initiate_video_feed(device, self.camera_urls)
                 # self.video_feed.set_urls(device)
-                self.window.camera_connection.set_status(True)
+                # self.window.camera_connection.set_status(True)
+                self.window.network_status.set_other_status("Camera Feed", True)  # Use set_other_status for camera
                 for url in self.camera_urls:
                     full_url = f"http://{device}:5000/{url}"
                     self.video_feed.append(opencv_communicator(full_url))
@@ -199,7 +200,8 @@ class BigBoyControl:
 
         # set the imuStatus value
         self.window.imu_connection.set_status(status=data["imuStatus"])
-        # self.window.camera_connection.set_status(status=self.window.video_feed.status)
+        # If you want to update camera status from data, use:
+        # self.window.network_status.set_other_status("Camera Feed", data.get("cameraStatus", False))
 
 if __name__ == "__main__":
     # Load configuration from setup.config

@@ -1,0 +1,11 @@
+name: sub
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pyside6
+  - inputs
+  - scapy
+  - opencv
+  - numpy
