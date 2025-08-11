@@ -1,118 +1,108 @@
+import threading
+import socket
+import os
 import cv2
 from flask import Flask, Response
 import logging
-import threading
 import time
+import signal
+import sys
 
-# Configure logging
+# --- Handshaker logic ---
+def handshaker(stop_event):
+    # setup the ip dhcp
+    os.system("sudo dhclient eth0")
+    UDP_IP = "0.0.0.0"
+    UDP_PORT = 5005
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((UDP_IP, UDP_PORT))
+
+    print(f"Listening for UDP packets on {UDP_IP}:{UDP_PORT}")
+
+    while not stop_event.is_set():
+        try:
+            sock.settimeout(1.0)
+            packet, addr = sock.recvfrom(1024)
+        except socket.timeout:
+            continue
+        except Exception as e:
+            if stop_event.is_set():
+                break
+            print(f"Handshaker error: {e}")
+            continue
+        packet = packet.decode("utf-8")
+        print(f"Received packet: {packet} from {addr}")
+
+        if packet == "Who are you?":
+            response = "I am RPi"
+            sock.sendto(response.encode("utf-8"), addr)
+            print(f"Sent response: {response}")
+
+# --- Video feeder logic ---
+app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-app = Flask(__name__)
-logging.info("Flask app is running")
-
-# Global camera objects and frame storage
 cameras = {}
 latest_frames = {}
 frame_locks = {}
-available_cameras = []  # Global list of available camera indices
+available_cameras = []
 
 def setup_camera(camera_index):
-    """Setup camera with optimized settings for Raspberry Pi"""
-    logging.info(f"Setting up camera {camera_index}")
-    
-    # Try different backends for better compatibility
     camera = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)
-    
     if not camera.isOpened():
-        logging.warning(f"Failed to open camera {camera_index} with V4L2, trying default backend")
         camera = cv2.VideoCapture(camera_index)
-    
     if not camera.isOpened():
-        logging.error(f"Failed to open camera {camera_index}")
         return None
-    
-    # Set codec first (important for USB cameras)
     camera.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    
-    # Set resolution
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    
-    # Set FPS
     camera.set(cv2.CAP_PROP_FPS, 15)
-    
-    # Reduce buffer size
     camera.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    
-    # Additional settings for stability
-    camera.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual exposure
-    
-    # Test camera by reading a few frames
-    logging.info(f"Testing camera {camera_index}...")
+    camera.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
     for i in range(5):
         ret, frame = camera.read()
         if ret:
-            logging.info(f"Camera {camera_index} test successful on attempt {i+1}")
             break
         time.sleep(0.5)
     else:
-        logging.error(f"Camera {camera_index} failed all test reads")
         camera.release()
         return None
-    
-    logging.info(f"Camera {camera_index} configured: {camera.get(cv2.CAP_PROP_FRAME_WIDTH)}x{camera.get(cv2.CAP_PROP_FRAME_HEIGHT)} @ {camera.get(cv2.CAP_PROP_FPS)}fps")
     return camera
 
-def capture_frames(camera_index):
-    """Continuously capture frames in a separate thread"""
+def capture_frames(camera_index, stop_event):
     camera = cameras[camera_index]
-    jpeg_encode_params = [cv2.IMWRITE_JPEG_QUALITY, 70]  # Reduce quality for speed
-    
-    # Give camera time to warm up
+    jpeg_encode_params = [cv2.IMWRITE_JPEG_QUALITY, 70]
     time.sleep(1)
-    
     consecutive_failures = 0
     max_failures = 10
-    
-    while True:
+    while not stop_event.is_set():
         success, frame = camera.read()
         if not success:
             consecutive_failures += 1
-            logging.error(f"Camera {camera_index} failed to read frame (failure #{consecutive_failures})")
-            
             if consecutive_failures >= max_failures:
-                logging.critical(f"Camera {camera_index} has failed {max_failures} times, attempting to reinitialize")
                 camera.release()
                 time.sleep(2)
-                
-                # Try to reinitialize camera
                 new_camera = setup_camera(camera_index)
                 if new_camera:
                     cameras[camera_index] = new_camera
                     camera = new_camera
                     consecutive_failures = 0
-                    logging.info(f"Camera {camera_index} successfully reinitialized")
                 else:
-                    logging.error(f"Failed to reinitialize camera {camera_index}")
-                    time.sleep(5)  # Wait longer before trying again
+                    time.sleep(5)
                     continue
             else:
                 time.sleep(0.1)
                 continue
         else:
-            consecutive_failures = 0  # Reset failure counter on success
-            
-        # Encode frame to JPEG
+            consecutive_failures = 0
         ret, buffer = cv2.imencode(".jpg", frame, jpeg_encode_params)
         if ret:
             with frame_locks[camera_index]:
                 latest_frames[camera_index] = buffer.tobytes()
-        
-        # Small delay to prevent overwhelming the CPU
         time.sleep(0.01)
 
 def generate_frames(camera_index):
-    """Generate frames from the latest captured frame"""
     while True:
         with frame_locks[camera_index]:
             if camera_index in latest_frames:
@@ -120,82 +110,84 @@ def generate_frames(camera_index):
                 yield (
                     b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
                 )
-        time.sleep(1/30)  # Limit streaming to 30fps max
-
+        time.sleep(1/30)
 
 @app.route("/video_feed_1")
 def video_feed_1():
     if len(available_cameras) < 1:
         return "No cameras available", 404
-    logging.info("Starting the video feed 1")
     return Response(
         generate_frames(available_cameras[0]), mimetype="multipart/x-mixed-replace; boundary=frame"
     )
-
 
 @app.route("/video_feed_2")
 def video_feed_2():
     if len(available_cameras) < 2:
         return "Camera 2 not available", 404
-    logging.info("Starting the video feed 2")
     return Response(
         generate_frames(available_cameras[1]), mimetype="multipart/x-mixed-replace; boundary=frame"
     )
 
-
 @app.route("/status")
 def status():
-    """Check camera status"""
     status_info = {
         "available_cameras": available_cameras,
         "camera_status": {}
     }
-    
     for cam_idx in available_cameras:
         has_frame = cam_idx in latest_frames and latest_frames[cam_idx] is not None
         status_info["camera_status"][cam_idx] = {
             "has_recent_frame": has_frame,
             "camera_active": cam_idx in cameras
         }
-    
     return status_info
 
-
-if __name__ == "__main__":
+def video_feeder(stop_event):
     # Find available cameras indices
-    logging.info("Finding available cameras")
     for i in range(10):
         camera = cv2.VideoCapture(i)
         if camera.isOpened():
-            logging.info(f"Camera {i} is available")
             available_cameras.append(i)
         camera.release()
-    
     if not available_cameras:
-        logging.error("No cameras found!")
-        exit(1)
-    
-    # Setup cameras with optimized settings
+        print("No cameras found!")
+        return
     for camera_index in available_cameras:
-        logging.info(f"Initializing camera {camera_index}")
         camera = setup_camera(camera_index)
-        
         if camera is None:
-            logging.error(f"Failed to setup camera {camera_index}, skipping")
             continue
-            
         cameras[camera_index] = camera
         latest_frames[camera_index] = None
         frame_locks[camera_index] = threading.Lock()
-        
-        # Start capture thread for each camera
-        capture_thread = threading.Thread(target=capture_frames, args=(camera_index,), daemon=True)
+        capture_thread = threading.Thread(target=capture_frames, args=(camera_index, stop_event), daemon=True)
         capture_thread.start()
-        logging.info(f"Started capture thread for camera {camera_index}")
-    
-    # Give cameras more time to initialize and warm up
-    logging.info("Waiting for cameras to warm up...")
     time.sleep(5)
-    
-    logging.info("Starting the Flask app")
-    app.run(host="0.0.0.0", port=5000, threaded=True)
+    # Flask's run() is blocking, so we check stop_event in a thread
+    def flask_runner():
+        app.run(host="0.0.0.0", port=5000, threaded=True)
+    flask_thread = threading.Thread(target=flask_runner, daemon=True)
+    flask_thread.start()
+    while not stop_event.is_set():
+        time.sleep(0.5)
+
+if __name__ == "__main__":
+    stop_event = threading.Event()
+
+    def signal_handler(sig, frame):
+        print("Shutting down gracefully...")
+        stop_event.set()
+        time.sleep(1)
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    t1 = threading.Thread(target=handshaker, args=(stop_event,), daemon=True)
+    t2 = threading.Thread(target=video_feeder, args=(stop_event,), daemon=True)
+    t1.start()
+    t2.start()
+    try:
+        while not stop_event.is_set():
+            time.sleep(1)
+    except KeyboardInterrupt:
+        signal_handler(None, None)

@@ -20,7 +20,7 @@ from opencv_communicator import opencv_communicator
 class BigBoyControl:
     def __init__(self):
         # Broadcast address and port
-        self.BROADCAST_IP = "192.168.1.255"  # Broadcast address for your network
+        self.BROADCAST_IP = "192.168.2.255"  # Broadcast address for your network CHANGE DEPENDING ON SUBNET!
         self.PORT = 5005
         self.MESSAGE = b"Who are you?"
         self.use_controller = False
@@ -32,12 +32,14 @@ class BigBoyControl:
         self.teensy_address = None
         self.new_devices = {}
         self.pi_exist = False
+        self.device_last_seen = {}  # Track when devices were last seen
 
         self.camera_urls = [5000, 5001]
 
         # Create UDP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.sock.settimeout(1.0)  # Add timeout for non-blocking operations
         self.devices = {}  # Dictionary to store IP and device names
 
     def parse_sensor_data(self, data):
@@ -65,80 +67,122 @@ class BigBoyControl:
         if device_name:
             # print(f"Device found: {device_name} at {addr[0]}")
             self.devices[addr[0]] = device_name
+            self.device_last_seen[addr[0]] = time.time()
             # set the device status to true
-            self.window.network_status.set_device_status(device_name, addr[0], True)
+            if self.window and hasattr(self.window, 'network_status'):
+                self.window.network_status.set_device_status(device_name, addr[0], True)
             if device_name == "Teensy":
                 self.teensy_address = addr[0]
+            elif device_name == "RPi":
+                self.check_pi()
             return self.devices
         else:
             # otherwise send broadcast message
-            self.sock.sendto(self.MESSAGE, (self.BROADCAST_IP, self.PORT))
-
-            # print("Waiting for responses from devices...")
+            try:
+                self.sock.sendto(self.MESSAGE, (self.BROADCAST_IP, self.PORT))
+                # print("Broadcast message sent...")
+            except Exception as e:
+                print(f"Error sending broadcast: {e}")
         return self.devices
+
     def listen_to_data(self):
         # Listen for data from devices
         while True:
-            data = None
-            data, addr = self.sock.recvfrom(1024)
-            # send to functions
-            # if data starts with "I am", then it is a device name
-            if data.decode().startswith("I am"):
-                device_name = data.decode().split("I am ")[1]
-                self.get_devices(device_name, addr)
-            elif data.decode().startswith("data"):
-                data = parser(data.decode())
-                # send to update the network status
-                # self.window.network_status.set_device_status(self.devices[addr[0]], addr[0], True)
-                # if record flag is true, then log the data
-                if self.record_flag:
-                    self.recorder.log_data(data)
-                    # self.video_feed.get_frame(self.recorder.video_file)
-                # send data to update gauge
-                self.update_gauges(data)
-            elif data.decode().startswith("message"):
-                # send message to the message log
-                pass
+            try:
+                data, addr = self.sock.recvfrom(1024)
+                # Update last seen time for this device
+                self.device_last_seen[addr[0]] = time.time()
+                
+                # if data starts with "I am", then it is a device name
+                if data.decode().startswith("I am"):
+                    device_name = data.decode().split("I am ")[1]
+                    self.get_devices(device_name, addr)
+                elif data.decode().startswith("data"):
+                    data = parser(data.decode())
+                    # Update device status as active since we received data
+                    if addr[0] in self.devices and self.window and hasattr(self.window, 'network_status'):
+                        self.window.network_status.set_device_status(self.devices[addr[0]], addr[0], True)
+                    # if record flag is true, then log the data
+                    if self.record_flag:
+                        self.recorder.log_data(data)
+                    # send data to update gauge
+                    self.update_gauges(data)
+                elif data.decode().startswith("message"):
+                    # send message to the message log
+                    pass
+            except socket.timeout:
+                continue
+            except Exception as e:
+                print(f"Error in listen_to_data: {e}")
+                time.sleep(0.1)
 
     def input_stream(self):
         controller = Controller()
         controller_status = controller.active
         prev_controller_values = None
         while True:
-            controller.get_controller_values()
-            if controller.active:
-                if not controller_status:
-                    controller_status = True
-                    self.window.network_status.set_other_status("controller", True)
-                # convert controller values to bytes
-                controller_values = ("controller: " + str(controller.axis)).encode()
-                # if current controller values does not equal previous controller values
-                if controller_values != prev_controller_values:
-                    prev_controller_values = controller_values
-                    # send values to teensy
-                    self.sock.sendto(controller_values, (self.teensy_address, self.PORT))
-            else:
-                if controller_status:
-                    controller_status = False
-                    self.window.network_status.set_other_status("controller", False)
+            try:
+                controller.get_controller_values()
+                if controller.active:
+                    if not controller_status:
+                        controller_status = True
+                        if self.window and hasattr(self.window, 'network_status'):
+                            self.window.network_status.set_other_status("Controller", True)
+                    # convert controller values to bytes
+                    controller_values = ("controller: " + str(controller.axis)).encode()
+                    # if current controller values does not equal previous controller values
+                    if controller_values != prev_controller_values:
+                        prev_controller_values = controller_values
+                        # send values to teensy
+                        if self.teensy_address:
+                            try:
+                                self.sock.sendto(controller_values, (self.teensy_address, self.PORT))
+                            except Exception as e:
+                                print(f"Error sending to Teensy: {e}")
+                else:
+                    if controller_status:
+                        controller_status = False
+                        if self.window and hasattr(self.window, 'network_status'):
+                            self.window.network_status.set_other_status("Controller", False)
+                time.sleep(0.05)  # Small delay to prevent excessive CPU usage
+            except Exception as e:
+                print(f"Error in input_stream: {e}")
+                time.sleep(0.1)
 
     def refresh_stuff(self):
-        # set all devices status to False
-        for device in self.devices:
-            self.window.network_status.set_device_status(self.devices[device], device, False)
+        # print("Refreshing devices...")
+        # Don't immediately set all devices to False, let the timeout handle it
         # get the devices again
         self.get_devices()
-        # if key "RPi" is in devices, then initiate video feed
-        self.check_pi()
+        
+    def check_device_timeouts(self):
+        """Check if devices haven't been seen recently and mark them as offline"""
+        current_time = time.time()
+        timeout_duration = 10.0  # 10 seconds timeout
+        
+        for addr, last_seen in list(self.device_last_seen.items()):
+            if current_time - last_seen > timeout_duration:
+                if addr in self.devices:
+                    device_name = self.devices[addr]
+                    print(f"Device {device_name} at {addr} timed out")
+                    if self.window and hasattr(self.window, 'network_status'):
+                        self.window.network_status.set_device_status(device_name, addr, False)
+                    # Handle specific device timeouts
+                    if device_name == "RPi" and self.pi_exist:
+                        self.pi_exist = False
+                        self.window.network_status.set_other_status("Camera Feed", False)
+                        # Stop video feeds
+                        for feed in self.video_feed:
+                            feed.stop_opencv()
+                        self.video_feed.clear()
 
     def check_pi(self):
         # check if the pi is connected
         for device in self.devices:
             if self.devices[device] == "RPi" and not self.pi_exist:
-                # self.window.initiate_video_feed(device, self.camera_urls)
-                # self.video_feed.set_urls(device)
-                # self.window.camera_connection.set_status(True)
-                self.window.network_status.set_other_status("Camera Feed", True)  # Use set_other_status for camera
+                print(f"Initializing Pi connection at {device}")
+                if self.window and hasattr(self.window, 'network_status'):
+                    self.window.network_status.set_other_status("Camera Feed", True)
                 for url in self.camera_urls:
                     full_url = f"http://{device}:5000/{url}"
                     self.video_feed.append(opencv_communicator(full_url))
@@ -150,6 +194,7 @@ class BigBoyControl:
 
     def keep_alive(self):  # (temporary solution)
         self.refresh_stuff()
+        self.check_device_timeouts()
 
     def record_data_switch(self):
         self.record_flag = not self.record_flag
@@ -164,20 +209,31 @@ class BigBoyControl:
         app = QApplication(sys.argv)
         self.window = MainWindow()
         self.window.show()
-        self.devices = self.get_devices()
-        # manually initialize the video feed
-        self.window.network_status.refresh_button.clicked.connect(lambda: self.refresh_stuff())
-        self.window.network_status.record_button.clicked.connect(lambda: self.record_data_switch())
+        
+        # Wait a moment for the window to initialize
+        time.sleep(0.1)
+        
+        # Initialize device discovery
+        self.get_devices()
+        
+        # Connect buttons
+        if hasattr(self.window, 'network_status'):
+            self.window.network_status.refresh_button.clicked.connect(lambda: self.refresh_stuff())
+            self.window.network_status.record_button.clicked.connect(lambda: self.record_data_switch())
+        
         # run the listen_to_data function in a separate thread
-        data_listener = threading.Thread(target=self.listen_to_data)
+        data_listener = threading.Thread(target=self.listen_to_data, daemon=True)
         data_listener.start()
+        
         # run the input_stream function in a separate thread
-        input_stream = threading.Thread(target=self.input_stream)
+        input_stream = threading.Thread(target=self.input_stream, daemon=True)
         input_stream.start()
+        
         # keep the GUI alive (temporary solution)
         self.timer = QTimer()
         self.timer.timeout.connect(self.keep_alive)
         self.timer.start(2000)
+        
         sys.exit(app.exec())
 
     # create a function to update the gauges
@@ -193,7 +249,7 @@ class BigBoyControl:
         self.window.yaw_indicator.set_yaw_angle(data['Yaw'])
 
         # set the depth value
-        self.window.depth_widget.set_depth(data['Depth'])
+        self.window.depth_widget.set_distances(data['Depth'], data['Depth'] + 20)  # Assuming seabed is 20 units below surface
 
         # set the depthStatus value
         self.window.depth_connection.set_status(status=data['depthStatus'])
