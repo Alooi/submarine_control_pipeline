@@ -14,17 +14,25 @@ class opencv_communicator():
 
     def start_opencv(self):
         if self.opencv_process is None:
-            self.opencv_process = subprocess.Popen(
-                [sys.executable, "opencv_video.py", self.url],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            print("OpenCV process started")
-            self.running = True
-            self.output_thread = threading.Thread(target=self.read_output)
-            self.output_thread.start()
+            try:
+                self.opencv_process = subprocess.Popen(
+                    [sys.executable, "opencv_video.py", self.url],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                if self.opencv_process.poll() is not None:
+                    self.running = False
+                    raise RuntimeError("Failed to start OpenCV process")
+                print("OpenCV process started")
+                self.running = True
+                self.output_thread = threading.Thread(target=self.read_output)
+                self.output_thread.start()
+            except Exception as e:
+                print(f"Error starting OpenCV process: {e}")
+                self.running = False
+                self.opencv_process = None
 
     def read_output(self):
         while self.running:

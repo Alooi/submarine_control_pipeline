@@ -15,6 +15,7 @@ class VideoProcessor:
         self.show_stream = True
         self.fps_list = []
         self.failing = False
+        self.last_frame = None  # Store the last frame for button callback
         print("VideoProcessor initialized")
         # self.start_camera()
         
@@ -29,7 +30,7 @@ class VideoProcessor:
         # fps and resolution
         if not self.cap.isOpened():
             print("Error: Could not open the video device")
-            # sys.exit(1)
+            sys.exit(1)
         self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
         # self.fps = 30
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -70,12 +71,12 @@ class VideoProcessor:
                 pass
             else:
                 self.failing = False
+                self.last_frame = frame  # Store the latest frame
                 if self.recording:
                     self.save_frame(frame)
                 if self.show_stream:
                     # draw fps on the frame
                     cv2.putText(frame, f"FPS: {self.fps:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                    cv2.namedWindow("Video Feed", cv2.WINDOW_NORMAL)
                     cv2.imshow("Video Feed", frame)
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):

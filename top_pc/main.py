@@ -122,18 +122,17 @@ class BigBoyControl:
         prev_controller_values = None
         while True:
             try:
+                prev_axis = dict(controller.axis)  # Copy before update
                 controller.get_controller_values()
+                # If axis values changed, send immediately
                 if controller.active:
                     if not controller_status:
                         controller_status = True
                         if self.window and hasattr(self.window, 'network_status'):
                             self.window.network_status.set_other_status("Controller", True)
-                    # convert controller values to bytes
                     controller_values = ("controller: " + str(controller.axis)).encode()
-                    # if current controller values does not equal previous controller values
-                    if controller_values != prev_controller_values:
+                    if controller.axis != prev_axis:
                         prev_controller_values = controller_values
-                        # send values to teensy
                         if self.teensy_address:
                             try:
                                 self.sock.sendto(controller_values, (self.teensy_address, self.PORT))
@@ -144,10 +143,10 @@ class BigBoyControl:
                         controller_status = False
                         if self.window and hasattr(self.window, 'network_status'):
                             self.window.network_status.set_other_status("Controller", False)
-                time.sleep(0.05)  # Small delay to prevent excessive CPU usage
+                # No sleep here for maximum responsiveness
             except Exception as e:
                 print(f"Error in input_stream: {e}")
-                time.sleep(0.1)
+                time.sleep(0.01)  # Small delay only on error
 
     def refresh_stuff(self):
         # print("Refreshing devices...")
@@ -170,7 +169,6 @@ class BigBoyControl:
                     # Handle specific device timeouts
                     if device_name == "RPi" and self.pi_exist:
                         self.pi_exist = False
-                        self.window.network_status.set_other_status("Camera Feed", False)
                         # Stop video feeds
                         for feed in self.video_feed:
                             feed.stop_opencv()
@@ -181,14 +179,17 @@ class BigBoyControl:
         for device in self.devices:
             if self.devices[device] == "RPi" and not self.pi_exist:
                 print(f"Initializing Pi connection at {device}")
-                if self.window and hasattr(self.window, 'network_status'):
-                    self.window.network_status.set_other_status("Camera Feed", True)
                 for url in self.camera_urls:
                     full_url = f"http://{device}:5000/{url}"
-                    self.video_feed.append(opencv_communicator(full_url))
+                    communicator = opencv_communicator(full_url)
+                    self.video_feed.append(communicator)
                 self.pi_exist = True
                 for feed in self.video_feed:
                     feed.start_opencv()
+                # Only set Camera Feed status to True if at least one feed is running
+                camera_feed_running = any(feed.running for feed in self.video_feed)
+                if self.window and hasattr(self.window, 'network_status'):
+                    self.window.network_status.set_other_status("Camera Feed", camera_feed_running)
                 return True
         return False
 
@@ -267,4 +268,5 @@ if __name__ == "__main__":
     # Update the instance variables
     main_frame = BigBoyControl()
     main_frame.camera_urls = ["video_feed_1", "video_feed_2"]
+    main_frame.run()
     main_frame.run()

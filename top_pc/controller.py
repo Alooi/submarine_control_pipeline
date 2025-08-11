@@ -3,27 +3,20 @@ import time
 
 class Controller:
     def __init__(self):
-
         self.connection = True
-        
-        # # check if controller is connected
-        # while self.connection:
-        #     try:
-        #         get_gamepad()
-        #     except:
-        #         self.connection = False
-        #         print("Controller not connected")
-        #         time.sleep(5)
         print("Controller reading initialized")
-                
-
         self.axis = {}
         self.button = {}
         self.active = True # controller is active by default
         self.hat = {}
+        self._last_axis = {}
 
     def get_controller_values(self):
-        events = get_gamepad()
+        try:
+            events = get_gamepad()
+        except OSError:
+            # No events available, return immediately
+            return
         for event in events:
             if event.ev_type == "Key":
                 if event.code == "BTN_START" and event.state == 1:
@@ -32,16 +25,23 @@ class Controller:
             elif event.ev_type == "Absolute":
                 # convert the axis values from -32767-32767 to -1 to 1
                 value = event.state / 32769
-                if event.code == "ABS_Y":
-                    self.axis["0"] = value
-                elif event.code == "ABS_X":
-                    self.axis["1"] = value
-                elif event.code == "ABS_RY":
-                    self.axis["2"] = value
-                elif event.code == "ABS_RX":
-                    self.axis["3"] = value
-                # print(event.code, ":" ,value, ":", event.state)
+                code_map = {
+                    "ABS_Y": "0",
+                    "ABS_X": "1",
+                    "ABS_RY": "2",
+                    "ABS_RX": "3"
+                }
+                if event.code in code_map:
+                    idx = code_map[event.code]
+                    # Only update if value changed
+                    if self.axis.get(idx) != value:
+                        self.axis[idx] = value
+        # No sleep here; let caller control timing
 
+# if __name__ == "__main__":
+#     controller = Controller()
+#     t = threading.Thread(target=controller.get_controller_values)
+#     t.start()
 # if __name__ == "__main__":
 #     controller = Controller()
 #     t = threading.Thread(target=controller.get_controller_values)
