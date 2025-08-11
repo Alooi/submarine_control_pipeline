@@ -52,6 +52,31 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         layout = QVBoxLayout(central_widget)
 
+        # --- Add logos at the top ---
+        logos_widget = QWidget()
+        logos_layout = QHBoxLayout(logos_widget)
+        logos_layout.setContentsMargins(0, 0, 0, 0)
+        logos_layout.setSpacing(10)
+
+        # Calculate logo width as 1/8 of the window width
+        logo_width = int(self.width() / 4) if self.width() > 0 else 128  # fallback if width=0
+        logo_height = int(logo_width * 0.25)  # keep aspect ratio (adjust as needed)
+
+        logo1 = QLabel()
+        logo1.setPixmap(
+            QPixmap("assets/kaust_logo.png").scaled(logo_width, logo_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+        logo2 = QLabel()
+        logo2.setPixmap(
+            QPixmap("assets/neom_logo.png").scaled(logo_width, logo_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+        logos_layout.addWidget(logo1)
+        logos_layout.addStretch(1)  # Add stretch between the logos
+        logos_layout.addWidget(logo2)
+
+        layout.addWidget(logos_widget)
+        # --- End logos section ---
+
         # Create splitters for resizable sections
         main_splitter = QSplitter(Qt.Vertical)  # Main splitter (vertical)
         middle_splitter = QSplitter(Qt.Horizontal)  # Middle splitter (horizontal)
