@@ -120,12 +120,14 @@ class BigBoyControl:
         controller = Controller()
         controller_status = controller.active
         prev_controller_values = None
+        gamepad_error_printed = False
         while True:
             try:
                 prev_axis = dict(controller.axis)  # Copy before update
                 controller.get_controller_values()
                 # If axis values changed, send immediately
                 if controller.active:
+                    gamepad_error_printed = False
                     if not controller_status:
                         controller_status = True
                         if self.window and hasattr(self.window, 'network_status'):
@@ -145,7 +147,12 @@ class BigBoyControl:
                             self.window.network_status.set_other_status("Controller", False)
                 # No sleep here for maximum responsiveness
             except Exception as e:
-                print(f"Error in input_stream: {e}")
+                if not gamepad_error_printed:
+                    if "No gamepad found" in str(e):
+                        print("No gamepad found. Waiting for a gamepad to be connected...")
+                    else:
+                        print(f"Error in input_stream: {e}")
+                    gamepad_error_printed = True
                 time.sleep(0.01)  # Small delay only on error
 
     def refresh_stuff(self):
@@ -268,5 +275,4 @@ if __name__ == "__main__":
     # Update the instance variables
     main_frame = BigBoyControl()
     main_frame.camera_urls = ["video_feed_1", "video_feed_2"]
-    main_frame.run()
     main_frame.run()
