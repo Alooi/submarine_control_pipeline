@@ -1,0 +1,11 @@
+PySide6
+inputs
+scapy
+opencv-python
+numpy
+torch
+Pillow
+matplotlib
+tqdm
+torchvision
+huggingface_hub
