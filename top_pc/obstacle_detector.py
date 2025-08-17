@@ -7,6 +7,10 @@ import numpy as np
 from depth_anything_processor import DepthAnythingProcessor
 from frame_red_squares import RedSquaresGrid
 
+import matplotlib
+# <<< CHANGE 1: Import the main matplotlib library to set the backend
+matplotlib.use('Agg') # Use a non-interactive backend
+# ---
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
@@ -80,112 +84,91 @@ class ObstacleDetector:
         
         return obstacle_depth_map
     
-    def visualize_obstacles(self, frame, obstacle_depth_map):
+    def visualize_obstacles(self, frame, obstacle_depth_map, fig, ax):
         """
-        Visualizes the detected obstacles on the input frame.
-        Opens a matplotlib window to display the frame with obstacles highlighted.
+        Visualizes the full depth map and obstacles in a live 3D plot, and returns it as an OpenCV image.
 
         Args:
             frame (np.ndarray): The input video frame in BGR format.
             obstacle_depth_map (np.ndarray): The 2D grid of obstacle depths.
+            fig (matplotlib.figure.Figure): The figure for plotting.
+            ax (matplotlib.axes._subplots.Axes3DSubplot): The 3D axes for plotting.
 
         Returns:
-            None
+            np.ndarray: The visualization as an OpenCV-compatible BGR image.
         """
-
-        # Prepare frame and depth map for visualization
+        # 1. Prepare data for visualization
         frame_resized = cv2.resize(frame, self.target_size)
         frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
         h, w = frame_rgb.shape[:2]
 
-        # For visualization, we need the depth map and obstacle grid
-        # We'll re-run the models here for demonstration, but ideally pass them in
-        image = Image.fromarray(frame_rgb)
-        depth_pil = self.depth_processor.infer_pil(image)
+        # Get the full depth map for the background
+        depth_pil = self.depth_processor.infer_pil(Image.fromarray(frame_rgb))
         depth_np = np.array(depth_pil)
-        # Flip the depth inside out
         min_d, max_d = np.nanmin(depth_np), np.nanmax(depth_np)
         flipped_depth_np = max_d + min_d - depth_np
-        output_obstacles = self.obstacle_grid_model(frame_resized)
 
-        grid_h, grid_w = output_obstacles.shape[:2]
+        grid_h, grid_w = obstacle_depth_map.shape
         cell_h, cell_w = h / grid_h, w / grid_w
 
-        # Create figure and axes
-        fig = plt.figure(figsize=(18, 6))
-        ax1 = fig.add_subplot(1, 3, 1)
-        ax2 = fig.add_subplot(1, 3, 2, projection='3d')
-        ax3 = fig.add_subplot(1, 3, 3, projection='3d')
+        # 2. Clear and redraw the plot
+        ax.clear()
+        ax.set_title("Live 3D Depth Map with Obstacles")
 
-        # Plot original frame with obstacle rectangles
-        ax1.set_title("Original Frame")
-        ax1.imshow(frame_rgb)
-        ax1.axis('off')
-        for i in range(grid_h):
-            for j in range(grid_w):
-                if output_obstacles[i, j, 0] > 0.5:
-                    y1, y2 = int(i * cell_h), int((i + 1) * cell_h)
-                    x1, x2 = int(j * cell_w), int((j + 1) * cell_w)
-                    # Use flipped depth
-                    depth_cell = flipped_depth_np[y1:y2, x1:x2]
-                    if depth_cell.size > 0:
-                        cell_depth = np.nanmean(depth_cell)
-                        min_d, max_d = np.nanmin(flipped_depth_np), np.nanmax(flipped_depth_np)
-                        if not np.isnan(cell_depth) and (max_d - min_d) > 0:
-                            norm_depth = (cell_depth - min_d) / (max_d - min_d)
-                            alpha = 0.9 * (1 - norm_depth)
-                            rect = Rectangle((x1, y1), x2-x1, y2-y1, linewidth=1, edgecolor='red', facecolor='none', alpha=alpha)
-                            ax1.add_patch(rect)
+        # Subsample the depth map for performance
+        depth_subsampled = flipped_depth_np[::10, ::10]
+        
+        # Get the shape of the *actual data* we are plotting
+        zh, zw = depth_subsampled.shape
+        
+        # Create coordinate grids that match the subsampled depth map's dimensions
+        x_coords = np.linspace(0, w - 1, zw)
+        y_coords = np.linspace(0, h - 1, zh)
+        x, y = np.meshgrid(x_coords, y_coords)
 
-        # Plot depth map as 3D surface
-        ax2.set_title("Depth Map (3D Surface, Flipped)")
-        x, y = np.meshgrid(np.arange(w), np.arange(h))
-        # Resize depth_np to match (h, w) for plotting
-        depth_np_resized = cv2.resize(flipped_depth_np, (w, h), interpolation=cv2.INTER_LINEAR)
-        ax2.plot_surface(x, y, depth_np_resized, cmap='viridis', edgecolor='none', alpha=0.7)
-        ax2.set_xlabel("Width")
-        ax2.set_ylabel("Height")
-        ax2.set_zlabel("Depth")
-        ax2.view_init(elev=290, azim=-90)
+        ax.plot_surface(x, y, depth_subsampled, cmap='viridis', edgecolor='none', alpha=0.7)
 
-        # Plot obstacles as red squares in 3D
-        ax3.set_title("Obstacles (Red Squares, 3D, Flipped)")
+        # Plot obstacles as red squares
         xs, ys, zs = [], [], []
         for i in range(grid_h):
             for j in range(grid_w):
-                if output_obstacles[i, j, 0] > 0.5:
+                if not np.isnan(obstacle_depth_map[i, j]):
                     y1, y2 = int(i * cell_h), int((i + 1) * cell_h)
                     x1, x2 = int(j * cell_w), int((j + 1) * cell_w)
-                    # Use flipped depth
-                    depth_cell = flipped_depth_np[y1:y2, x1:x2]
-                    if depth_cell.size > 0:
-                        cell_depth = np.nanmean(depth_cell)
-                        if not np.isnan(cell_depth):
-                            xs.append((x1 + x2) / 2)
-                            ys.append((y1 + y2) / 2)
-                            zs.append(cell_depth)
-        if len(xs) > 0:
-            ax3.scatter(xs, ys, zs, color='red', s=100, edgecolors='black')
-        ax3.set_xlabel("Width")
-        ax3.set_ylabel("Height")
-        ax3.set_zlabel("Depth")
-        ax3.set_xlim(0, w)
-        ax3.set_ylim(0, h)
-        ax3.set_zlim(np.nanmin(flipped_depth_np), np.nanmax(flipped_depth_np))
-        ax3.view_init(elev=290, azim=-90)
+                    cell_depth = obstacle_depth_map[i, j]
+                    xs.append((x1 + x2) / 2)
+                    ys.append((y1 + y2) / 2)
+                    zs.append(cell_depth)
 
-        plt.tight_layout()
-        plt.show()
+        if len(xs) > 0:
+            ax.scatter(xs, ys, zs, color='red', s=50, edgecolors='black', depthshade=True)
+
+        ax.set_xlabel("Width")
+        ax.set_ylabel("Height")
+        ax.set_zlabel("Depth")
+        ax.set_xlim(0, w)
+        ax.set_ylim(0, h)
+        if not np.all(np.isnan(flipped_depth_np)):
+            ax.set_zlim(np.nanmin(flipped_depth_np), np.nanmax(flipped_depth_np))
+        ax.view_init(elev=290, azim=-90)
+
+        # 3. Convert Matplotlib plot to an OpenCV image
+        fig.canvas.draw()
+        img_buf = fig.canvas.buffer_rgba()
+        img = np.asarray(img_buf)
+        img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
         
+        return img
+
 if __name__ == '__main__':
     # Example usage:
     # This part demonstrates how to use the ObstacleDetector class.
-    # It reads from a sample video, processes each frame, and prints the result.
+    # It reads from a sample video, processes each frame, and provides a live visualization.
 
     # --- Configuration ---
     video_path = "/home/ali/codebases/AvoidNet/samples/underwater_drone_sample.mp4"
-    vizualize = True  # Set to True if you want to visualize the obstacles
-    
+    visualize = True  # Set to True to see the live visualization
+
     # --- Initialization ---
     detector = ObstacleDetector()
     cap = cv2.VideoCapture(video_path)
@@ -198,34 +181,53 @@ if __name__ == '__main__':
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     print(f"Processing video with {total_frames} frames...")
 
+    # --- Initialization for Live Visualization ---
+    if visualize:
+        # <<< CHANGE 2: Removed plt.ion() as it's not needed with the 'Agg' backend
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+
     # --- Processing Loop ---
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        # Process the frame
+        # Process the frame to get the obstacle map
         obstacle_map = detector.process_frame(frame)
-        if vizualize:
-            detector.visualize_obstacles(frame, obstacle_map)
 
-        # --- Example: Print the output ---
-        # For a real application, you would use this 'obstacle_map' for navigation,
-        # visualization, etc. Here, we'll just print some info for the first few frames.
+        if visualize:
+            # Generate the visualization image from the plot
+            vis_image = detector.visualize_obstacles(frame, obstacle_map, fig, ax)
+            
+            # Display the live visualization in an OpenCV window
+            cv2.imshow('Live 3D Visualization', vis_image)
+
+            # Also, display the original frame for comparison
+            # Resize the original frame to match the target size for consistent display
+            frame_resized_display = cv2.resize(frame, detector.target_size)
+            cv2.imshow('Original Frame', frame_resized_display)
+
+            # Check for 'q' key to exit the loop
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        # --- Example: Print the output for the first few frames ---
         if frame_count < 5:
             print(f"\n--- Frame {frame_count} ---")
             print("Obstacle Depth Map (NaN means no obstacle):")
-            # Printing with precision for better readability
             with np.printoptions(precision=2, suppress=True, nanstr="."):
                 print(obstacle_map)
         
         frame_count += 1
         
-        # Optional: Add a simple progress indicator to the console
         if (frame_count % 10) == 0:
             print(f"Processed {frame_count}/{total_frames} frames...", end='\r')
 
-
     # --- Cleanup ---
     cap.release()
+    if visualize:
+        cv2.destroyAllWindows()
+        # <<< CHANGE 3: Removed plt.ioff()
+        plt.close(fig) # Still good practice to close the figure object
     print(f"\nFinished processing all {frame_count} frames.")
