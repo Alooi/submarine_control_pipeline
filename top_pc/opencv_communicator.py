@@ -65,6 +65,13 @@ class opencv_communicator():
             self.opencv_process.terminate()
             self.opencv_process = None
             print("OpenCV process terminated")
+            
+    def start_obstacle_avoidance(self):
+        if self.opencv_process is not None:
+            print("Starting obstacle avoidance")
+            self.opencv_process.stdin.write("start_obstacle_avoidance\n")
+            self.opencv_process.stdin.flush()
+            time.sleep(0.1)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OpenCV Communicator")

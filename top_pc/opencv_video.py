@@ -2,6 +2,8 @@ import cv2
 import sys
 import select
 import time
+from obstacle_detector import ObstacleDetector  # Assuming you have an obstacle detection module
+import matplotlib.pyplot as plt
 
 class VideoProcessor:
     def __init__(self, url):
@@ -18,6 +20,10 @@ class VideoProcessor:
         self.last_frame = None  # Store the last frame for button callback
         print("VideoProcessor initialized")
         # self.start_camera()
+        self.detect = False
+        self.detector = ObstacleDetector()  # Initialize the obstacle detector
+        self.fig = plt.figure(figsize=(10, 8))
+        self.ax = self.fig.add_subplot(111, projection='3d')
         
     def avg_fps(self, fps, over=100):
         self.fps_list = self.fps_list[-over:]
@@ -59,6 +65,23 @@ class VideoProcessor:
                         print("Recording stopped")
                     else:
                         print("No recording in progress")
+                elif command[0] == "start_obstacle_avoidance":
+                    print("opencv_video: Starting obstacle avoidance")
+                    self.detect = True
+                    # create a new instance of the obstacle detector
+                    self.detector = ObstacleDetector()  # Reinitialize the detector if needed
+                    # create a new cv2 window for visualization
+                    if not hasattr(self, 'fig') or not hasattr(self, 'ax'):
+                        self.fig = plt.figure(figsize=(10, 8))
+                        self.ax = self.fig.add_subplot(111, projection='3d')
+                elif command[0] == "stop_obstacle_avoidance":
+                    print("opencv_video: Stopping obstacle avoidance")
+                    self.detect = False
+                    # remove window if it exists
+                    if hasattr(self, 'fig') and hasattr(self, 'ax'):
+                        plt.close(self.fig)
+                        self.fig = None
+                        self.ax = None
                 else:
                     print("Unknown command:", command)
 
@@ -72,6 +95,19 @@ class VideoProcessor:
             else:
                 self.failing = False
                 self.last_frame = frame  # Store the latest frame
+                if self.detect:
+                    # Process the frame for obstacle detection
+                    obstacle_map = self.detector.process_frame(frame)
+                    if self.visualize:
+                        # Generate the visualization image from the plot
+                        vis_image = self.detector.visualize_obstacles(frame, obstacle_map, self.fig, self.ax)
+                        
+                        # Display the live visualization in an OpenCV window
+                        cv2.imshow('Live 3D Visualization', vis_image)
+
+                        # Check for 'q' key to exit the loop
+                        if cv2.waitKey(1) & 0xFF == ord('q'):
+                            break
                 if self.recording:
                     self.save_frame(frame)
                 if self.show_stream:

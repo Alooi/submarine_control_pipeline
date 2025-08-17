@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLayout,
     QSplitter,
+    QPushButton,
 )
 
 
@@ -44,6 +45,8 @@ class MainWindow(QMainWindow):
         self.urls = []
         self.ip = "localhost"
         self.video_feeds = []
+        
+        self.obstacle_avoidance_button = QPushButton("Obstacle Avoidance", checkable=True)
 
         # set the minimum size of the window
         self.setMinimumSize(1024, 720)
@@ -155,6 +158,7 @@ class MainWindow(QMainWindow):
         obstacle_frame = QFrame()
         obstacle_frame.setLayout(obstacle_layout)
         obstacle_frame.setStyleSheet("QFrame { border: 2px solid #444; border-radius: 8px; }")
+        obstacle_layout.addWidget(self.obstacle_avoidance_button)
         obstacle_layout.addWidget(self.front_echo_connection)
 
         # Add horizontal obstacle indicator

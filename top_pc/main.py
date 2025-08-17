@@ -211,6 +211,19 @@ class BigBoyControl:
             self.recorder.start_recording(self.video_feed)
         else:
             self.recorder.stop_recording()
+            
+    def toggle_obstacle_avoidance(self):
+        if self.window and hasattr(self.window, 'obstacle_avoidance_button'):
+            if self.window.obstacle_avoidance_button.isChecked():
+                print("Obstacle avoidance enabled")
+                # send video frames to the obstacle avoidance logic
+                if self.pi_exist:
+                    for feed in self.video_feed:
+                        feed.start_obstacle_avoidance()
+            else:
+                print("Obstacle avoidance disabled")
+                # Here you would stop the obstacle avoidance logic
+                # For example, stop the thread that listens for obstacle data
 
     def run(self):
         # run the GUI
@@ -228,6 +241,7 @@ class BigBoyControl:
         if hasattr(self.window, 'network_status'):
             self.window.network_status.refresh_button.clicked.connect(lambda: self.refresh_stuff())
             self.window.network_status.record_button.clicked.connect(lambda: self.record_data_switch())
+            self.window.obstacle_avoidance_button.clicked.connect(lambda: self.toggle_obstacle_avoidance())
         
         # run the listen_to_data function in a separate thread
         data_listener = threading.Thread(target=self.listen_to_data, daemon=True)
