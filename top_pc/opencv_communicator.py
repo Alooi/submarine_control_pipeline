@@ -68,10 +68,19 @@ class opencv_communicator():
             
     def start_obstacle_avoidance(self):
         if self.opencv_process is not None:
-            print("Starting obstacle avoidance")
-            self.opencv_process.stdin.write("start_obstacle_avoidance\n")
-            self.opencv_process.stdin.flush()
-            time.sleep(0.1)
+            try:
+                print("Starting obstacle avoidance")
+                self.opencv_process.stdin.write("start_obstacle_avoidance\n")
+                self.opencv_process.stdin.flush()
+                time.sleep(0.1)
+            except BrokenPipeError:
+                print("Error: OpenCV process pipe is broken. Process may have terminated.")
+                self.running = False
+                self.opencv_process = None
+            except Exception as e:
+                print(f"Error sending obstacle avoidance command: {e}")
+                self.running = False
+                self.opencv_process = None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OpenCV Communicator")

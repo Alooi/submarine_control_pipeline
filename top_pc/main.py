@@ -219,7 +219,10 @@ class BigBoyControl:
                 # send video frames to the obstacle avoidance logic
                 if self.pi_exist:
                     for feed in self.video_feed:
-                        feed.start_obstacle_avoidance()
+                        if getattr(feed, "running", False):
+                            feed.start_obstacle_avoidance()
+                        else:
+                            print("Skipping obstacle avoidance for feed: not running")
             else:
                 print("Obstacle avoidance disabled")
                 # Here you would stop the obstacle avoidance logic
