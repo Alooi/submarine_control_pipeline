@@ -21,7 +21,7 @@ class VideoProcessor:
         print("VideoProcessor initialized")
         # self.start_camera()
         self.detect = False
-        self.detector = ObstacleDetector()  # Initialize the obstacle detector
+        self.detector = None  # Initialize the obstacle detector
         self.fig = plt.figure(figsize=(10, 8))
         self.ax = self.fig.add_subplot(111, projection='3d')
         
@@ -69,7 +69,14 @@ class VideoProcessor:
                     print("opencv_video: Starting obstacle avoidance")
                     self.detect = True
                     # create a new instance of the obstacle detector
-                    self.detector = ObstacleDetector()  # Reinitialize the detector if needed
+                    try:
+                        self.detector = ObstacleDetector()  # Reinitialize the detector if needed
+                    except Exception as e:
+                        import traceback
+                        print("Failed to initialize ObstacleDetector:")
+                        traceback.print_exc()
+                        self.detect = False
+                        continue
                     # create a new cv2 window for visualization
                     if not hasattr(self, 'fig') or not hasattr(self, 'ax'):
                         self.fig = plt.figure(figsize=(10, 8))
