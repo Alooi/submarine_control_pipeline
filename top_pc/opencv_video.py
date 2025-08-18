@@ -24,6 +24,7 @@ class VideoProcessor:
         self.detector = None  # Initialize the obstacle detector
         self.fig = plt.figure(figsize=(10, 8))
         self.ax = self.fig.add_subplot(111, projection='3d')
+        self.visualize = True  # Set to True if you want to visualize the obstacles
         
     def avg_fps(self, fps, over=100):
         self.fps_list = self.fps_list[-over:]
@@ -71,6 +72,7 @@ class VideoProcessor:
                     # create a new instance of the obstacle detector
                     try:
                         self.detector = ObstacleDetector()  # Reinitialize the detector if needed
+                        print("ObstacleDetector initialized")
                     except Exception as e:
                         import traceback
                         print("Failed to initialize ObstacleDetector:")

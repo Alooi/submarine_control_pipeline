@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from PIL import Image
 from avoid_net import get_model
-from dataset import SUIM_grayscale
+from dataset import SUIMGrayscaleTransformOnly
 from draw_obsticle import draw_red_squares
 
 class RedSquaresGrid:
@@ -11,12 +11,12 @@ class RedSquaresGrid:
             model = get_model(arc + '_q')
         else:
             model = get_model(arc)
-        model.load_state_dict(torch.load(f"models/{arc}_{run_name}.pth"))
         device = torch.device("cuda" if torch.cuda.is_available() and use_gpu else "cpu")
+        model.load_state_dict(torch.load(f"models/{arc}_{run_name}.pth", map_location=device))
         model.to(device).eval()
         self.model = model
         self.device = device
-        dataset = SUIM_grayscale("/media/ali/New Volume/Datasets/TEST")
+        dataset = SUIMGrayscaleTransformOnly()
         self.image_transform = dataset.get_transform()
         self.threshold = threshold
 

@@ -27,13 +27,20 @@ class ObstacleDetector:
             use_gpu (bool): Whether to use GPU if available.
         """
         self.device = "cuda" if torch.cuda.is_available() and use_gpu else "cpu"
-        print(f"Using device: {self.device}")
+        print(f"Using device: {self.device}", flush=True)
 
         self.depth_processor = DepthAnythingProcessor(encoder=encoder, device=self.device)
         self.obstacle_grid_model = RedSquaresGrid(arc=red_squares_arc, run_name=red_squares_run_name, use_gpu=use_gpu)
         
         self.target_size = (640, 480)
 
+        print("ObstacleDetector initialized with:", flush=True)
+        print(f" - Encoder: {encoder}", flush=True)
+        print(f" - Red Squares Architecture: {red_squares_arc}", flush=True)
+        print(f" - Red Squares Run Name: {red_squares_run_name}", flush=True)
+        print(f" - Using GPU: {use_gpu}", flush=True)
+        print("Models loaded and ready for processing.", flush=True)
+        
     def process_frame(self, frame):
         """
         Processes a single video frame to detect obstacles and estimate their depth.
