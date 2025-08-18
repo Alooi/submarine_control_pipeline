@@ -225,8 +225,13 @@ class BigBoyControl:
                             print("Skipping obstacle avoidance for feed: not running")
             else:
                 print("Obstacle avoidance disabled")
-                # Here you would stop the obstacle avoidance logic
-                # For example, stop the thread that listens for obstacle data
+                # Stop obstacle avoidance logic
+                if self.pi_exist:
+                    for feed in self.video_feed:
+                        if getattr(feed, "running", False):
+                            feed.stop_obstacle_avoidance()
+                        else:
+                            print("Skipping obstacle avoidance stop for feed: not running")
 
     def run(self):
         # run the GUI

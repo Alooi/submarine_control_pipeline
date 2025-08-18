@@ -2,6 +2,7 @@ import cv2
 import sys
 import select
 import time
+import threading
 from obstacle_detector import ObstacleDetector  # Assuming you have an obstacle detection module
 import matplotlib.pyplot as plt
 
@@ -21,15 +22,37 @@ class VideoProcessor:
         print("VideoProcessor initialized")
         # self.start_camera()
         self.detect = False
-        self.detector = None  # Initialize the obstacle detector
+        self.detector = None
         self.fig = plt.figure(figsize=(10, 8))
         self.ax = self.fig.add_subplot(111, projection='3d')
         self.visualize = True  # Set to True if you want to visualize the obstacles
-        
+        # threading-related
+        self.obstacle_thread = None
+        self.obstacle_thread_running = False
+        self.obstacle_lock = threading.Lock()
+        self.obstacle_frame = None
+        self.obstacle_vis_image = None
+        self.obstacle_vis_window_open = False  # Track if vis window is open
+
     def avg_fps(self, fps, over=100):
         self.fps_list = self.fps_list[-over:]
         self.fps_list.append(fps)
         return sum(self.fps_list) / len(self.fps_list)
+
+    def obstacle_avoidance_worker(self):
+        while self.obstacle_thread_running:
+            with self.obstacle_lock:
+                frame = self.obstacle_frame
+            if frame is not None and self.detector is not None:
+                try:
+                    obstacle_map = self.detector.process_frame(frame)
+                    if self.visualize:
+                        vis_image = self.detector.visualize_obstacles(frame, obstacle_map, self.fig, self.ax)
+                        with self.obstacle_lock:
+                            self.obstacle_vis_image = vis_image
+                except Exception as e:
+                    print("Exception in obstacle avoidance thread:", e)
+            time.sleep(0.01)  # avoid busy loop
 
     def start_camera(self):
         print ("Starting camera with url: ", self.url)
@@ -69,9 +92,8 @@ class VideoProcessor:
                 elif command[0] == "start_obstacle_avoidance":
                     print("opencv_video: Starting obstacle avoidance")
                     self.detect = True
-                    # create a new instance of the obstacle detector
                     try:
-                        self.detector = ObstacleDetector()  # Reinitialize the detector if needed
+                        self.detector = ObstacleDetector()
                         print("ObstacleDetector initialized")
                     except Exception as e:
                         import traceback
@@ -79,14 +101,26 @@ class VideoProcessor:
                         traceback.print_exc()
                         self.detect = False
                         continue
-                    # create a new cv2 window for visualization
                     if not hasattr(self, 'fig') or not hasattr(self, 'ax'):
                         self.fig = plt.figure(figsize=(10, 8))
                         self.ax = self.fig.add_subplot(111, projection='3d')
+                    # Start obstacle avoidance thread
+                    if self.obstacle_thread is None or not self.obstacle_thread.is_alive():
+                        self.obstacle_thread_running = True
+                        self.obstacle_thread = threading.Thread(target=self.obstacle_avoidance_worker, daemon=True)
+                        self.obstacle_thread.start()
+                    self.obstacle_vis_window_open = True
                 elif command[0] == "stop_obstacle_avoidance":
                     print("opencv_video: Stopping obstacle avoidance")
                     self.detect = False
-                    # remove window if it exists
+                    self.obstacle_thread_running = False
+                    if self.obstacle_thread is not None:
+                        self.obstacle_thread.join(timeout=1)
+                        self.obstacle_thread = None
+                    # Close the visualization window if open
+                    if self.obstacle_vis_window_open:
+                        cv2.destroyWindow('Live 3D Visualization')
+                        self.obstacle_vis_window_open = False
                     if hasattr(self, 'fig') and hasattr(self, 'ax'):
                         plt.close(self.fig)
                         self.fig = None
@@ -105,18 +139,19 @@ class VideoProcessor:
                 self.failing = False
                 self.last_frame = frame  # Store the latest frame
                 if self.detect:
-                    # Process the frame for obstacle detection
-                    obstacle_map = self.detector.process_frame(frame)
-                    if self.visualize:
-                        # Generate the visualization image from the plot
-                        vis_image = self.detector.visualize_obstacles(frame, obstacle_map, self.fig, self.ax)
-                        
-                        # Display the live visualization in an OpenCV window
+                    with self.obstacle_lock:
+                        self.obstacle_frame = frame.copy()
+                    with self.obstacle_lock:
+                        vis_image = self.obstacle_vis_image
+                    if self.visualize and vis_image is not None and self.detect:
                         cv2.imshow('Live 3D Visualization', vis_image)
-
+                        self.obstacle_vis_window_open = True
                         # Check for 'q' key to exit the loop
                         if cv2.waitKey(1) & 0xFF == ord('q'):
                             break
+                    elif not self.detect and self.obstacle_vis_window_open:
+                        cv2.destroyWindow('Live 3D Visualization')
+                        self.obstacle_vis_window_open = False
                 if self.recording:
                     self.save_frame(frame)
                 if self.show_stream:
@@ -135,6 +170,15 @@ class VideoProcessor:
 
         self.cap.release()
         cv2.destroyAllWindows()
+        # Stop thread if running
+        self.obstacle_thread_running = False
+        if self.obstacle_thread is not None:
+            self.obstacle_thread.join(timeout=1)
+            self.obstacle_thread = None
+        # Ensure visualization window is closed
+        if self.obstacle_vis_window_open:
+            cv2.destroyWindow('Live 3D Visualization')
+            self.obstacle_vis_window_open = False
 
     def save_frame(self, frame):
         self.out.write(frame)
