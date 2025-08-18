@@ -114,6 +114,12 @@ class ObstacleDetector:
         depth_np = np.array(depth_pil)
         min_d, max_d = np.nanmin(depth_np), np.nanmax(depth_np)
         flipped_depth_np = max_d + min_d - depth_np
+        
+        # Calculate a small offset to lift obstacle dots above the surface
+        z_offset = 0
+        if not np.all(np.isnan(flipped_depth_np)):
+            depth_range = np.nanmax(flipped_depth_np) - np.nanmin(flipped_depth_np)
+            z_offset = depth_range * 0.02  # 2% of depth range
 
         grid_h, grid_w = obstacle_depth_map.shape
         cell_h, cell_w = h / grid_h, w / grid_w
@@ -145,7 +151,7 @@ class ObstacleDetector:
                     cell_depth = obstacle_depth_map[i, j]
                     xs.append((x1 + x2) / 2)
                     ys.append((y1 + y2) / 2)
-                    zs.append(cell_depth)
+                    zs.append(cell_depth - z_offset)
 
         if len(xs) > 0:
             ax.scatter(xs, ys, zs, color='red', s=50, edgecolors='black', depthshade=True)
@@ -156,7 +162,7 @@ class ObstacleDetector:
         ax.set_xlim(0, w)
         ax.set_ylim(0, h)
         if not np.all(np.isnan(flipped_depth_np)):
-            ax.set_zlim(np.nanmin(flipped_depth_np), np.nanmax(flipped_depth_np))
+            ax.set_zlim(np.nanmin(flipped_depth_np), np.nanmax(flipped_depth_np) - z_offset)
         ax.view_init(elev=290, azim=-90)
 
         # 3. Convert Matplotlib plot to an OpenCV image
